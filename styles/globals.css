@@ -1,1 +1,30 @@
+:root{
+  --bg:#F6F7F9;
+  --dark:#0F2133;
+  --green:#28D07E;
+  --muted:#7B8794;
+  --card:#FFFFFF;
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
+html,body,#__next { height:100%; margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; background:var(--bg); color:var(--dark); }
+.container{ max-width:980px; margin:32px auto; padding:0 16px; }
+.header{ display:flex; align-items:center; justify-content:space-between; padding:16px 0; }
+.logo{ display:flex; gap:12px; align-items:center; }
+.logo img{ height:40px; width:40px; }
+.hero{ background:linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.6)); padding:28px; border-radius:12px; box-shadow:0 4px 16px rgba(15,33,51,0.06); margin-bottom:18px; }
+.searchRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.input{ flex:1; padding:12px; border-radius:8px; border:1px solid #E6E9EE; background:#fff; min-width:160px; }
+.btn{ background:var(--green); color:white; padding:12px 18px; border-radius:8px; border:none; font-weight:600; cursor:pointer; }
+.resultsHeader{ margin:18px 0 8px 0; display:flex; justify-content:space-between; align-items:center; }
+.card{ display:flex; gap:12px; background:var(--card); padding:12px; border-radius:10px; box-shadow:0 6px 18px rgba(15,33,51,0.04); margin-bottom:10px; align-items:flex-start; }
+.thumb{ width:120px; height:90px; object-fit:cover; border-radius:6px; background:#f0f0f0;}
+.title{ font-weight:700; margin:0; }
+.price{ color:var(--green); font-weight:700; font-size:1.05rem; }
+.small{ color:var(--muted); font-size:0.9rem; }
+.footer{ margin-top:28px; color:var(--muted); font-size:0.9rem; padding:18px 0; border-top:1px solid #E8EBF0; }
+@media(max-width:720px){
+  .searchRow{ flex-direction:column; align-items:stretch; }
+  .thumb{ width:100%; height:180px; border-radius:8px; }
+  .card{ flex-direction:column; }
+}
