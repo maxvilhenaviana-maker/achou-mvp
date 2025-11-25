@@ -13,16 +13,16 @@ if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade 
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
-// MUDANÇA CRÍTICA: Removendo o filtro de "oportunidade" para garantir que o JSON seja entregue
+// RESTAURANDO O PROMPT MAIS COMPLEXO (com data e análise de preço)
 const systemPrompt = `
-Você é um agente de busca de anúncios online no Brasil, focado em performance.
-Seu objetivo é encontrar anúncios de produtos relevantes na região especificada.
+Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
+Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço.
 
 Regras de busca (USE A FERRAMENTA DE BUSCA):
 1. A busca deve ser insensível a maiúsculas e minúsculas e deve ser ampla o suficiente para encontrar o produto na região.
 2. Acesse OLX, Desapega, Mercado Livre ou equivalentes, usando a ferramenta de busca fornecida.
-3. **PRIORIDADE MÁXIMA:** Retorne qualquer anúncio relevante para o produto e a cidade, sem aplicar filtros de preço ou data. O foco é apenas encontrar resultados.
-4. Para cada anúncio encontrado, retorne: title (título), price (apenas o valor numérico, sem R$), location (localização), date (data de publicação original do anúncio), **description (descrição breve, 1-2 frases sobre o achado e a fonte)**, link (URL do anúncio), img (URL da imagem principal).
+3. **CRITÉRIO DE OPORTUNIDADE (PRIORIDADE MÁXIMA):** Traga apenas anúncios publicados **HOJE ou ONTEM** na região informada **E** que o preço esteja nitidamente **abaixo do valor de mercado** para aquele produto/condição.
+4. Para cada anúncio que for uma oportunidade, retorne: title (título), price (apenas o valor numérico, sem R$), location (localização), date (data de publicação original do anúncio), analysis (análise breve, 1-2 frases sobre o achado e porque é uma oportunidade), link (URL do anúncio), img (URL da imagem principal).
 5. Retorne um JSON com uma lista chamada "items" que contenha todos os resultados.
 6. Não invente anúncios.
 7. Retorne APENAS o JSON, sem nenhuma explicação ou texto antes ou depois.
@@ -68,6 +68,12 @@ return res.status(response.status).json({ error: errorMessage, details: txt });
 const json = await response.json();
 const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
+// LOG DE DEBUG
+console.log('--- RAW API RESPONSE TEXT ---');
+console.log(jsonText);
+console.log('-----------------------------');
+
+
 if (!jsonText) {
 console.error("Resposta da API vazia ou sem texto de candidato.");
 return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
@@ -107,12 +113,8 @@ items = parsedData.items || parsedData;
 return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: jsonText });
 }
 
-// Garante que o retorno é sempre um array e renomeia 'description' para 'analysis'
-return res.status(200).json({ items: Array.isArray(items) ? items.map(item => ({
-...item,
-analysis: item.description || item.analysis || 'Informação de anúncio.',
-description: undefined // Remove o campo antigo se existir
-})) : [] });
+// Garante que o retorno é sempre um array
+return res.status(200).json({ items: Array.isArray(items) ? items : [] });
 
 } catch (err) {
 console.error('Erro de Fetch/Rede na API:', err);
