@@ -66,12 +66,13 @@ img: it.image_url || it.img || '/placeholder-120x90.png'
 }));
 setItems(normalized);
 } else if(json.raw) {
+// Exibe o texto bruto para depuração no front-end (se parsing falhar)
 setItems([{
-title: 'Resultado bruto (erro de formato)',
+title: 'Resultado bruto (falha no formato JSON)',
 price:'—',
 location:'—',
 date:'—',
-analysis: json.raw,
+analysis: json.raw.substring(0, 500) + (json.raw.length > 500 ? '...' : ''),
 link:'#'
 }]);
 }
@@ -111,7 +112,7 @@ return (
 
 <div className="resultsHeader">
 <div style={{fontWeight:700}}>{ (produto && searchExecuted) ? `Resultados para: ${produto} — ${cidade}` : 'Nenhuma busca ainda'}</div>
-<div className="small">Resultados mostram anúncios publicados HOJE ou ONTEM</div>
+<div className="small">Resultados mostram anúncios publicados HOJE ou ONTEM com preço abaixo do mercado</div>
 </div>
 
 {error && <div style={{color:'red',marginBottom:12, padding: '12px', background: '#fee', borderRadius: '8px'}}>{error}</div>}
@@ -133,7 +134,7 @@ alignItems: 'center'
 <h3 style={{margin: 0, color: 'var(--dark)'}}>Radar em Processamento...</h3>
 </div>
 <p style={{color: 'var(--muted)', maxWidth: '500px'}}>
-Estamos vasculhando a web para encontrar anúncios publicados hoje ou ontem e analisando o preço de mercado para garantir que seja uma oportunidade. Este processo pode levar alguns segundos.
+Estamos vasculhando a web para encontrar anúncios publicados hoje ou ontem e **analisando o preço de mercado** para garantir que seja uma oportunidade. Este processo é complexo e pode levar alguns segundos.
 </p>
 </div>
 )}
@@ -144,7 +145,7 @@ Estamos vasculhando a web para encontrar anúncios publicados hoje ou ontem e an
 {items.length === 0 && searchExecuted && !loading && produto && cidade && (
 <div style={{textAlign: 'center', margin: '40px 0', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', background: '#fff'}}>
 <h3 style={{marginTop: 0, color: 'var(--dark)'}}>Nenhum Achado Recente</h3>
-<p style={{color: 'var(--muted)'}}>O radar não encontrou nenhum anúncio para **"{produto}"** em **{cidade}** publicado **hoje ou ontem** que estivesse abaixo do valor de mercado. Tente refinar ou ampliar a busca!</p>
+<p style={{color: 'var(--muted)'}}>O radar não encontrou nenhum anúncio para **"{produto}"** em **{cidade}** publicado **hoje ou ontem** que estivesse **abaixo do valor de mercado**. Tente refinar ou ampliar a busca!</p>
 </div>
 )}
 </div>
