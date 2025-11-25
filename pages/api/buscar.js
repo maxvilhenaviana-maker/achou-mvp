@@ -13,7 +13,7 @@ if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade 
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
-// Reforço nas instruções para garantir o Grounding e o formato de saída.
+// Reforço nas instruções para garantir o Grounding e o formato de saída como JSON puro no texto.
 const systemPrompt = `
 Você é um agente de busca automática de oportunidades no Brasil.
 Seu objetivo é encontrar anúncios de produtos que estejam com preço abaixo do valor de mercado.
@@ -25,7 +25,7 @@ Regras de busca (USE A FERRAMENTA DE BUSCA):
 4. Para cada anúncio, retorne: title (título), price (apenas o valor numérico, sem R$), location (localização), date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado), link (URL do anúncio), img (URL da imagem principal).
 5. Retorne um JSON com uma lista chamada "items" que contenha todos os resultados.
 6. Não invente anúncios.
-7. Retorne APENAS o JSON.
+7. Retorne APENAS o JSON, sem nenhuma explicação ou texto antes ou depois.
 8. SE NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}
 `;
 
@@ -41,34 +41,12 @@ const payload = {
 contents: [
 { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
 ],
-// ATIVAÇÃO CRÍTICA DO GOOGLE SEARCH GROUNDING
+// MANTEMOS O GOOGLE SEARCH GROUNDING - ESSENCIAL PARA A BUSCA NA WEB
 tools: [{ "google_search": {} }],
-// FIM DA ATIVAÇÃO
+// REMOVEMOS responseMimeType e responseSchema para evitar o erro 400
 generationConfig: {
 temperature: 0.0,
 maxOutputTokens: 800,
-responseMimeType: "application/json",
-responseSchema: {
-type: "OBJECT",
-properties: {
-items: {
-type: "ARRAY",
-items: {
-type: "OBJECT",
-properties: {
-title: { type: "STRING" },
-price: { type: "NUMBER" }, // Esperamos um número, sem R$
-location: { type: "STRING" },
-date: { type: "STRING" },
-analysis: { type: "STRING" },
-link: { type: "STRING" },
-img: { type: "STRING" },
-},
-required: ["title", "price", "location", "date", "analysis", "link", "img"]
-}
-}
-}
-}
 }
 };
 
@@ -96,15 +74,34 @@ if (!jsonText) {
 return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
 }
 
-let parsed;
+let items = [];
+let rawText = jsonText;
+
+// REINTRODUZ O PARSING SEGURO (REGEX + JSON.parse)
 try {
-parsed = JSON.parse(jsonText);
+const parsed = JSON.parse(jsonText);
+items = parsed.items || parsed;
 } catch (e) {
-console.error('Erro ao fazer parse do JSON:', jsonText, e);
-return res.status(500).json({ error: 'Formato de resposta inválido da API.', raw: jsonText });
+// Tenta encontrar e extrair o JSON mesmo que tenha texto extra (ex: ```json)
+const match = jsonText.match(/\{[\s\S]*\}/);
+if (match) {
+try {
+const p2 = JSON.parse(match[0]);
+items = p2.items || p2;
+rawText = match[0]; // Atualiza o rawText para o JSON extraído
+} catch (e2) {
+// Falha ao extrair JSON válido, retorna o texto bruto
+console.error('Erro ao tentar extrair JSON com regex:', e2);
+return res.status(200).json({ raw: rawText });
+}
+} else {
+// Não encontrou nenhum JSON, retorna o texto bruto
+return res.status(200).json({ raw: rawText });
+}
 }
 
-return res.status(200).json({ items: parsed.items || [] });
+// Retorna os itens extraídos
+return res.status(200).json({ items });
 
 } catch (err) {
 console.error('Erro API', err);
