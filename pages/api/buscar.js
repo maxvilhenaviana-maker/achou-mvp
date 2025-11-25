@@ -1,7 +1,6 @@
 export default async function handler(req, res) {
 if (req.method !== 'POST') return res.status(405).end();
 
-// A chave de ambiente está sendo lida como GEMINI_ACHOU_KEY
 const apiKey = process.env.GEMINI_ACHOU_KEY;
 
 if (!apiKey) {
@@ -26,6 +25,7 @@ Regras de busca:
 5. Retorne um JSON com uma lista chamada "items" que contenha todos os resultados.
 6. Não invente anúncios.
 7. Retorne APENAS o JSON.
+8. **SE NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}**
 `;
 
 const userPrompt = `
@@ -80,7 +80,6 @@ body: JSON.stringify(payload)
 
 if (!response.ok) {
 const txt = await response.text();
-// MUDANÇA CRÍTICA: Inclui o status HTTP na mensagem de erro para o usuário.
 const errorMessage = `Erro na API do Gemini (HTTP ${response.status}).`;
 console.error('Gemini error', response.status, txt);
 return res.status(response.status).json({ error: errorMessage, details: txt });
@@ -98,6 +97,7 @@ try {
 parsed = JSON.parse(jsonText);
 } catch (e) {
 console.error('Erro ao fazer parse do JSON:', jsonText, e);
+// Se falhar o parse, retorna o texto bruto para que o usuário veja
 return res.status(500).json({ error: 'Formato de resposta inválido da API.', raw: jsonText });
 }
 
