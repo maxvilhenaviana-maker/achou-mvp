@@ -15,18 +15,17 @@ const MODEL_NAME = 'gemini-2.5-flash';
 
 const systemPrompt = `
 Você é um agente de busca automática de oportunidades no Brasil.
-Seu objetivo é encontrar anúncios de produtos que estejam com preço abaixo do valor de mercado.
+Seu objetivo é encontrar anúncios de produtos que estejam com preço abaixo do valor de mercado (OPORTUNIDADE).
 
 Regras de busca (USE A FERRAMENTA DE BUSCA):
-1. A busca deve ser insensível a maiúsculas e minúsculas (case-insensitive) e deve ser ampla o suficiente para encontrar o produto.
+1. A busca deve ser insensível a maiúsculas e minúsculas (case-insensitive) e deve ser ampla o suficiente para encontrar o produto na região.
 2. Acesse OLX, Desapega, Mercado Livre ou equivalentes, usando a ferramenta de busca fornecida.
-3. Traga apenas anúncios publicados HOJE ou ONTEM na região informada.
-4. Selecione apenas anúncios com preço abaixo do valor de mercado (OPORTUNIDADE).
-5. Para cada anúncio, retorne: title (título), price (apenas o valor numérico, sem R$), location (localização), date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado), link (URL do anúncio), img (URL da imagem principal).
-6. Retorne um JSON com uma lista chamada "items" que contenha todos os resultados.
-7. Não invente anúncios.
-8. Retorne APENAS o JSON, sem nenhuma explicação ou texto antes ou depois.
-9. SE NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}
+3. **PRIORIDADE MÁXIMA:** Focar em anúncios onde o preço é claramente abaixo do valor de mercado para o item na região. Não filtre por data de publicação, apenas por oportunidades de preço.
+4. Para cada anúncio que for uma oportunidade, retorne: title (título), price (apenas o valor numérico, sem R$), location (localização), date (data de publicação original do anúncio), analysis (análise breve, 1-2 frases sobre o achado e a oportunidade), link (URL do anúncio), img (URL da imagem principal).
+5. Retorne um JSON com uma lista chamada "items" que contenha todos os resultados.
+6. Não invente anúncios.
+7. Retorne APENAS o JSON, sem nenhuma explicação ou texto antes ou depois.
+8. SE NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}
 `;
 
 const userPrompt = `
@@ -70,6 +69,7 @@ const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
 if (!jsonText) {
 console.error("Resposta da API vazia ou sem texto de candidato.");
+// Retorna rawText/error para que o frontend exiba a mensagem de erro apropriada
 return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
 }
 
@@ -101,4 +101,4 @@ return res.status(200).json({ items: Array.isArray(items) ? items : [] });
 console.error('Erro de Fetch/Rede na API:', err);
 return res.status(500).json({ error: 'Erro de comunicação com o servidor API.', details: String(err) });
 }
-}
+}}
