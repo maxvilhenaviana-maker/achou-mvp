@@ -13,7 +13,6 @@ if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade 
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
-// Reforço nas instruções para garantir o Grounding e o formato de saída como JSON puro no texto.
 const systemPrompt = `
 Você é um agente de busca automática de oportunidades no Brasil.
 Seu objetivo é encontrar anúncios de produtos que estejam com preço abaixo do valor de mercado.
@@ -41,12 +40,10 @@ const payload = {
 contents: [
 { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
 ],
-// MANTEMOS O GOOGLE SEARCH GROUNDING - ESSENCIAL PARA A BUSCA NA WEB
 tools: [{ "google_search": {} }],
-// REMOVEMOS responseMimeType e responseSchema para evitar o erro 400
 generationConfig: {
 temperature: 0.0,
-maxOutputTokens: 800,
+maxOutputTokens: 1024, // Aumentado para dar mais espaço ao modelo
 }
 };
 
@@ -70,41 +67,44 @@ return res.status(response.status).json({ error: errorMessage, details: txt });
 const json = await response.json();
 const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
+// Se jsonText estiver vazio (Resposta vazia ou inválida), retorna erro 500
 if (!jsonText) {
+console.error("Resposta da API vazia ou sem texto de candidato.");
 return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
 }
 
 let items = [];
 let rawText = jsonText;
 
-// REINTRODUZ O PARSING SEGURO (REGEX + JSON.parse)
+// Tenta fazer o parse do JSON
 try {
 const parsed = JSON.parse(jsonText);
 items = parsed.items || parsed;
 } catch (e) {
-// Tenta encontrar e extrair o JSON mesmo que tenha texto extra (ex: ```json)
+// Se falhar o parse, tenta encontrar o JSON usando regex (caso o modelo inclua texto extra)
 const match = jsonText.match(/\{[\s\S]*\}/);
 if (match) {
 try {
 const p2 = JSON.parse(match[0]);
 items = p2.items || p2;
-rawText = match[0]; // Atualiza o rawText para o JSON extraído
+rawText = match[0];
 } catch (e2) {
-// Falha ao extrair JSON válido, retorna o texto bruto
+// Falha ao extrair JSON válido, retorna o texto bruto como 'raw'
 console.error('Erro ao tentar extrair JSON com regex:', e2);
-return res.status(200).json({ raw: rawText });
+return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: rawText });
 }
 } else {
-// Não encontrou nenhum JSON, retorna o texto bruto
-return res.status(200).json({ raw: rawText });
+// Não encontrou nenhum JSON, retorna o texto bruto como 'raw'
+return res.status(200).json({ error: 'Resposta não contém JSON.', raw: rawText });
 }
 }
 
 // Retorna os itens extraídos
-return res.status(200).json({ items });
+return res.status(200).json({ items: Array.isArray(items) ? items : [] });
 
 } catch (err) {
-console.error('Erro API', err);
-return res.status(500).json({ error: 'Erro interno ao tentar se comunicar com a API.', details: String(err) });
+// Captura erros de rede/fetch que resultam em "Erro na API do Gemini"
+console.error('Erro de Fetch/Rede na API:', err);
+return res.status(500).json({ error: 'Erro de comunicação com o servidor API.', details: String(err) });
 }
 }
