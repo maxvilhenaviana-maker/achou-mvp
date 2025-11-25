@@ -13,19 +13,20 @@ if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade 
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
+// Reforço nas instruções para garantir o Grounding e o formato de saída.
 const systemPrompt = `
 Você é um agente de busca automática de oportunidades no Brasil.
 Seu objetivo é encontrar anúncios de produtos que estejam com preço abaixo do valor de mercado.
 
-Regras de busca:
-1. Acesse OLX, Desapega, Mercado Livre ou equivalentes.
+Regras de busca (USE A FERRAMENTA DE BUSCA):
+1. Acesse OLX, Desapega, Mercado Livre ou equivalentes, usando a ferramenta de busca fornecida.
 2. Traga apenas anúncios publicados HOJE ou ONTEM na região informada.
 3. Selecione apenas anúncios com preço abaixo do valor de mercado.
 4. Para cada anúncio, retorne: title (título), price (apenas o valor numérico, sem R$), location (localização), date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado), link (URL do anúncio), img (URL da imagem principal).
 5. Retorne um JSON com uma lista chamada "items" que contenha todos os resultados.
 6. Não invente anúncios.
 7. Retorne APENAS o JSON.
-8. **SE NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}**
+8. SE NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}
 `;
 
 const userPrompt = `
@@ -40,6 +41,9 @@ const payload = {
 contents: [
 { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
 ],
+// ATIVAÇÃO CRÍTICA DO GOOGLE SEARCH GROUNDING
+tools: [{ "google_search": {} }],
+// FIM DA ATIVAÇÃO
 generationConfig: {
 temperature: 0.0,
 maxOutputTokens: 800,
@@ -53,7 +57,7 @@ items: {
 type: "OBJECT",
 properties: {
 title: { type: "STRING" },
-price: { type: "NUMBER" },
+price: { type: "NUMBER" }, // Esperamos um número, sem R$
 location: { type: "STRING" },
 date: { type: "STRING" },
 analysis: { type: "STRING" },
@@ -97,7 +101,6 @@ try {
 parsed = JSON.parse(jsonText);
 } catch (e) {
 console.error('Erro ao fazer parse do JSON:', jsonText, e);
-// Se falhar o parse, retorna o texto bruto para que o usuário veja
 return res.status(500).json({ error: 'Formato de resposta inválido da API.', raw: jsonText });
 }
 
