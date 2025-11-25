@@ -1,14 +1,33 @@
 import { useState } from 'react';
 import ResultCard from '../components/ResultCard';
 
+// Componente simples de Spinner para indicar processamento
+const Spinner = () => (
+<div style={{
+border: '4px solid #f3f3f3',
+borderTop: '4px solid var(--green)',
+borderRadius: '50%',
+width: '24px',
+height: '24px',
+animation: 'spin 1s linear infinite',
+marginRight: '8px'
+}}>
+<style jsx global>{`
+@keyframes spin {
+0% { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
+}
+`}</style>
+</div>
+);
+
+
 export default function Home() {
 const [produto, setProduto] = useState('');
 const [cidade, setCidade] = useState('');
 const [loading, setLoading] = useState(false);
-// Inicializado como um array vazio para facilitar a lógica de renderização
 const [items, setItems] = useState([]);
 const [error, setError] = useState(null);
-// Estado para rastrear se uma busca já foi executada
 const [searchExecuted, setSearchExecuted] = useState(false);
 
 async function buscar(e){
@@ -19,8 +38,8 @@ return;
 }
 setError(null);
 setLoading(true);
-setItems([]); // Limpa os itens, garantindo que seja um array vazio
-setSearchExecuted(false); // Reinicia a flag antes de começar a busca
+setItems([]);
+setSearchExecuted(false);
 
 try{
 const payload = { produto, cidade };
@@ -34,10 +53,8 @@ body: JSON.stringify(payload)
 const json = await resp.json();
 
 if(json.error) {
-// Exibe o erro e os detalhes da API do Gemini
 setError(json.error + (json.details ? ` (${json.details.substring(0, 80)}...)` : ''));
 } else if(json.items) {
-// Mapear campos e normalizar dados
 const normalized = json.items.map(it => ({
 title: it.title || it.titulo || 'Sem título',
 price: it.price || it.preco || '',
@@ -49,7 +66,6 @@ img: it.image_url || it.img || '/placeholder-120x90.png'
 }));
 setItems(normalized);
 } else if(json.raw) {
-// Em caso de erro de parsing JSON, mostra o texto bruto retornado
 setItems([{
 title: 'Resultado bruto (erro de formato)',
 price:'—',
@@ -65,7 +81,7 @@ setError('Erro ao buscar. Verifique sua conexão e o console.');
 console.error(err);
 } finally {
 setLoading(false);
-setSearchExecuted(true); // Marca que a busca foi concluída, independente do resultado
+setSearchExecuted(true);
 }
 }
 
@@ -94,20 +110,37 @@ return (
 </div>
 
 <div className="resultsHeader">
-{/* Exibe o header do resultado somente após a busca ter sido executada */}
 <div style={{fontWeight:700}}>{ (produto && searchExecuted) ? `Resultados para: ${produto} — ${cidade}` : 'Nenhuma busca ainda'}</div>
 <div className="small">Resultados mostram anúncios publicados HOJE ou ONTEM</div>
 </div>
 
 {error && <div style={{color:'red',marginBottom:12, padding: '12px', background: '#fee', borderRadius: '8px'}}>{error}</div>}
 
-{loading && <div style={{textAlign: 'center', margin: '20px 0', color: 'var(--muted)'}}>Carregando resultados...</div>}
+{loading && (
+<div style={{
+textAlign: 'center',
+margin: '40px 0',
+padding: '20px',
+border: '1px solid #ccc',
+borderRadius: '8px',
+background: '#fff',
+display: 'flex',
+flexDirection: 'column',
+alignItems: 'center'
+}}>
+<div style={{display:'flex', alignItems:'center', marginBottom: '10px'}}>
+<Spinner />
+<h3 style={{margin: 0, color: 'var(--dark)'}}>Radar em Processamento...</h3>
+</div>
+<p style={{color: 'var(--muted)', maxWidth: '500px'}}>
+Estamos vasculhando a web para encontrar anúncios publicados hoje ou ontem e analisando o preço de mercado para garantir que seja uma oportunidade. Este processo pode levar alguns segundos.
+</p>
+</div>
+)}
 
 <div>
-{/* Mostra cards se items.length > 0 */}
 {items.length > 0 && items.map((it, idx) => <ResultCard key={idx} item={it} />)}
 
-{/* Mostra mensagem de "Nenhum resultado" se a busca foi concluída e o array está vazio */}
 {items.length === 0 && searchExecuted && !loading && produto && cidade && (
 <div style={{textAlign: 'center', margin: '40px 0', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', background: '#fff'}}>
 <h3 style={{marginTop: 0, color: 'var(--dark)'}}>Nenhum Achado Recente</h3>
