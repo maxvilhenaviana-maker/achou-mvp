@@ -1,8 +1,6 @@
 export default async function handler(req, res) {
 if (req.method !== 'POST') return res.status(405).end();
 
-// As variáveis __app_id e __firebase_config NÃO são usadas aqui,
-// mas o código mantém a estrutura base de uma API route no Next.js.
 const apiKey = process.env.GEMINI_ACHOU_KEY;
 
 if (!apiKey) {
@@ -15,8 +13,6 @@ if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade 
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
-// O systemPrompt foca na performance e na simulação de análise de preço
-// para evitar o timeout que estava causando a resposta vazia.
 const systemPrompt = `
 Você é um agente de busca automática de oportunidades no Brasil, focado em alta performance e entrega rápida.
 Seu objetivo é encontrar anúncios de produtos que pareçam ser uma pechincha (barganha).
@@ -44,11 +40,10 @@ const payload = {
 contents: [
 { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
 ],
-// Habilita o Google Search Grounding, essencial para a busca na web
 tools: [{ "google_search": {} }],
 generationConfig: {
 temperature: 0.0,
-maxOutputTokens: 1024, // Aumentado para dar mais espaço ao JSON
+maxOutputTokens: 1024,
 }
 };
 
@@ -74,32 +69,43 @@ const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
 if (!jsonText) {
 console.error("Resposta da API vazia ou sem texto de candidato.");
-// Retorna 500 para indicar falha na API ou timeout
 return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
 }
 
 let items = [];
 let rawText = jsonText;
 
-// Bloco de parsing robusto: tenta JSON.parse, e se falhar, tenta extrair o JSON
-// do texto bruto usando regex, o que é comum com o Grounding.
+// Função para limpar o texto e tentar o JSON.parse
+const tryParseJson = (text) => {
+// 1. Remove marcadores de bloco de código Markdown (```json e ```)
+let cleanedText = text.replace(/```json\s*/g, '').replace(/\s*```/g, '').trim();
+
+// 2. Tenta fazer o parse do JSON
 try {
-const parsed = JSON.parse(jsonText);
-items = parsed.items || parsed;
+const parsed = JSON.parse(cleanedText);
+return parsed;
 } catch (e) {
-const match = jsonText.match(/\{[\s\S]*\}/);
+// Se falhar, tentamos a abordagem anterior de regex para extrair o primeiro bloco {}
+const match = cleanedText.match(/\{[\s\S]*\}/);
 if (match) {
 try {
-const p2 = JSON.parse(match[0]);
-items = p2.items || p2;
-rawText = match[0];
+return JSON.parse(match[0]);
 } catch (e2) {
-console.error('Erro ao tentar extrair JSON com regex:', e2);
-return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: rawText });
+console.error('Falha ao extrair JSON com regex:', e2);
+return null;
 }
+}
+return null;
+}
+};
+
+const parsedData = tryParseJson(jsonText);
+
+if (parsedData) {
+items = parsedData.items || parsedData;
 } else {
-return res.status(200).json({ error: 'Resposta não contém JSON.', raw: rawText });
-}
+// Se todas as tentativas de parsing falharem, retornamos o erro com o texto bruto.
+return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: rawText });
 }
 
 // Garante que o retorno é sempre um array
