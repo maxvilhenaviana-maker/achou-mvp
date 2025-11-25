@@ -101,4 +101,4 @@ return res.status(200).json({ items: Array.isArray(items) ? items : [] });
 console.error('Erro de Fetch/Rede na API:', err);
 return res.status(500).json({ error: 'Erro de comunicação com o servidor API.', details: String(err) });
 }
-}}
+}
