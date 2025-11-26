@@ -20,8 +20,10 @@ export default async function handler(req, res) {
     // MODELO PRO (Modelo mais forte para raciocínio e busca complexa, testado como estável neste ambiente)
     const MODEL_NAME = 'gemini-2.5-pro';
 
+    // URL DE PLACEHOLDER PARA LOGO: Referenciando o arquivo na pasta public
+    const logoPlaceholderUrl = '/placeholder-120x90.png';
+
     // !!! INSTRUÇÃO CRÍTICA PARA EVITAR TIMEOUT DE 60s !!!
-    // A instrução foi refinada para ser ainda mais clara sobre o retorno em caso de falha.
     const systemPrompt = `
 Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
 Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço no mercado atual.
@@ -30,7 +32,8 @@ Regras de busca (USE A FERRAMENTA DE BUSCA):
 1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
 2. **CRITÉRIO DE OPORTUNIDADE:** Traga apenas anúncios que, em sua análise, estejam nitidamente **abaixo do valor de mercado** para aquele produto/condição.
 3. **REGRA DE RETORNO RÁPIDO (PARA EVITAR TIMEOUT):** Comece a buscar. Assim que encontrar **3 (três) oportunidades válidas**, retorne o JSON IMEDIATAMENTE e PARE a busca. Não espere a varredura completa.
-4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), e **link** (URL). **A chave 'img' NÃO é mais obrigatória e pode ser omitida se não estiver prontamente disponível na busca.**
+4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), link (URL) e **img (URL da imagem)**.
+5. **IMAGEM PLACEHOLDER:** Se a busca na web não fornecer uma imagem direta para o anúncio, você DEVE usar o seguinte URL como valor para a chave 'img': ${logoPlaceholderUrl}
 
 RESPOSTA EXCLUSIVA: Sua resposta deve conter **APENAS** o bloco de código JSON. Não inclua texto explicativo, introduções, títulos ou qualquer outro caractere fora do bloco \`\`\`json.
 **IMPORTANTE (Contingência):** Se NENHUM resultado for encontrado ou o tempo estiver se esgotando, você DEVE retornar estritamente: \`\`\`json\n{"items": []}\n\`\`\` para evitar erros de formatação.
@@ -48,7 +51,7 @@ Execute a varredura e retorne apenas o JSON, conforme instruído.
         contents: [
             { role: "user", parts: [{ text: userPrompt }] }
         ],
-        // System instruction deve ser enviada fora do contents, mas como alternativa para modelos antigos, colocamos no prompt.
+        // System instruction é enviada fora do contents.
         systemInstruction: {
             parts: [{ text: systemPrompt }]
         },
@@ -116,8 +119,9 @@ Execute a varredura e retorne apenas o JSON, conforme instruído.
             // Se a estrutura for {items: [...]}, usa items. Se for um array direto, usa o parsedData.
             items = parsedData.items || (Array.isArray(parsedData) ? parsedData : []);
         } else {
-            // RETORNA ERRO SE O PARSING FALHAR
-            return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: jsonText });
+            // === ALTERAÇÃO 2 APLICADA AQUI ===
+            const customizedErrorMessage = `Não foi possível fazer a pesquisa pela elevada quantidade de ofertas. Especifique melhor a pesquisa (ex.: Tv 32, ao invés de apenas Tv.)`;
+            return res.status(200).json({ error: customizedErrorMessage, raw: jsonText });
         }
 
         return res.status(200).json({ items: Array.isArray(items) ? items : [] });
