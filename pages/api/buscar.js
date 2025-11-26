@@ -16,8 +16,8 @@ return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na 
 const { produto, cidade, raio } = req.body;
 if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
 
-// !!! MUDANÇA CRÍTICA: USANDO MODELO PRO MAIS ROBUSTO PARA TOOL USE !!!
-const MODEL_NAME = 'gemini-2.5-pro-preview-09-2025';
+// !!! CORREÇÃO DO MODELO PRO: Usando o nome padrão 'gemini-2.5-pro' !!!
+const MODEL_NAME = 'gemini-2.5-pro';
 
 // PROMPT ORIGINAL COMPLEXO REINTRODUZIDO
 const systemPrompt = `
@@ -52,6 +52,7 @@ maxOutputTokens: 1024,
 };
 
 try {
+// O fetch agora usa o nome de modelo corrigido
 const response = await fetch(
 `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`,
 {
