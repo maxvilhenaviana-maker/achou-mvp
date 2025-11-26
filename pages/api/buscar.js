@@ -17,10 +17,10 @@ export default async function handler(req, res) {
     const { produto, cidade, raio } = req.body;
     if (!produto || !cidade) return res.status(400).json({ error: 'Produto e cidade são obrigatórios' });
 
-    // MODELO FLASH (Modelo mais econômico e rápido para evitar esgotamento de cota)
-    const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
+    // MODELO PRO (Necessário para lidar com a complexidade da busca por "Oportunidade de Ouro" e evitar o timeout do modelo Flash)
+    const MODEL_NAME = 'gemini-2.5-pro';
 
-    // URL DE PLACEHOLDER PARA LOGO: Referenciando o arquivo na pasta public
+    // URL DE PLACEHOLDER PARA LOGO: Referenciando o arquivo na pasta public (Alteração 1.1)
     const logoPlaceholderUrl = '/placeholder-120x90.png';
 
     // !!! INSTRUÇÃO CRÍTICA PARA EVITAR TIMEOUT DE 60s !!!
@@ -32,7 +32,7 @@ Regras de busca (USE A FERRAMENTA DE BUSCA):
 1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
 2. **CRITÉRIO DE OPORTUNIDADE:** Traga apenas anúncios que, em sua análise, estejam nitidamente **abaixo do valor de mercado** para aquele produto/condição.
 3. **REGRA DE RETORNO RÁPIDO (PARA EVITAR TIMEOUT):** Comece a buscar. Assim que encontrar **3 (três) oportunidades válidas**, retorne o JSON IMEDIATAMENTE e PARE a busca. Não espere a varredura completa.
-4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), link (URL) e **img (URL da imagem)**.
+4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), link (URL do anúncio) e **img (URL da imagem)**.
 5. **IMAGEM PLACEHOLDER:** Se a busca na web não fornecer uma imagem direta para o anúncio, você DEVE usar o seguinte URL como valor para a chave 'img': ${logoPlaceholderUrl}
 
 RESPOSTA EXCLUSIVA: Sua resposta deve conter **APENAS** o bloco de código JSON. Não inclua texto explicativo, introduções, títulos ou qualquer outro caractere fora do bloco \`\`\`json.
@@ -84,8 +84,9 @@ Execute a varredura e retorne apenas o JSON, conforme instruído.
         const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!jsonText) {
-            console.error("Resposta da API vazia ou sem texto de candidato. Possível timeout interno do modelo PRO.");
-            return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use PRO?)' });
+            // Tratamento de Timeout
+            console.error("Resposta da API vazia ou sem texto de candidato. Possível timeout interno do modelo PRO/FLASH.");
+            return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use PRO/FLASH?)' });
         }
 
         let items = [];
