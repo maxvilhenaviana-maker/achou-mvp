@@ -21,6 +21,7 @@ if (!produto || !cidade) return res.status(400).json({ error: 'Produto e cidade 
 const MODEL_NAME = 'gemini-2.5-pro';
 
 // !!! INSTRUÇÃO CRÍTICA PARA EVITAR TIMEOUT DE 60s !!!
+// A instrução foi refinada para ser ainda mais clara sobre o retorno em caso de falha.
 const systemPrompt = `
 Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
 Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço no mercado atual.
@@ -28,11 +29,11 @@ Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de pre
 Regras de busca (USE A FERRAMENTA DE BUSCA):
 1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
 2. **CRITÉRIO DE OPORTUNIDADE:** Traga apenas anúncios que, em sua análise, estejam nitidamente **abaixo do valor de mercado** para aquele produto/condição.
-3. **REGRA DE RETORNO RÁPIDO (PARA EVITAR TIMEOUT):** Comece a buscar. Assim que encontrar **3 (três) oportunidades válidas**, retorne o JSON IMEDIATAMENTE e PARE a busca. Não espere a varredura completa, o tempo é crítico.
+3. **REGRA DE RETORNO RÁPIDO (PARA EVITAR TIMEOUT):** Comece a buscar. Assim que encontrar **3 (três) oportunidades válidas**, retorne o JSON IMEDIATAMENTE e PARE a busca. Não espere a varredura completa.
 4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), link (URL), e img (URL da imagem principal).
 
 RESPOSTA EXCLUSIVA: Sua resposta deve conter **APENAS** o bloco de código JSON. Não inclua texto explicativo, introduções, títulos ou qualquer outro caractere fora do bloco \`\`\`json.
-Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: \`\`\`json\n{"items": []}\n\`\`\`
+**IMPORTANTE (Contingência):** Se NENHUM resultado for encontrado ou o tempo estiver se esgotando, você DEVE retornar estritamente: \`\`\`json\n{"items": []}\n\`\`\` para evitar erros de formatação.
 `;
 
 const userPrompt = `
