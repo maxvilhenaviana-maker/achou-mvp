@@ -16,19 +16,21 @@ return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na 
 const { produto, cidade, raio } = req.body;
 if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
 
-// !!! CORREÇÃO DO MODELO PRO: Usando o nome padrão 'gemini-2.5-pro' !!!
+// MODELO PRO para lidar com a complexidade da busca
 const MODEL_NAME = 'gemini-2.5-pro';
 
-// PROMPT ORIGINAL COMPLEXO REINTRODUZIDO
+// !!! CORREÇÃO CRÍTICA: INSTRUÇÃO DE SAÍDA EXCLUSIVA !!!
 const systemPrompt = `
 Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
-Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço.
+Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço no mercado atual.
 
 Regras de busca (USE A FERRAMENTA DE BUSCA):
 1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
-2. **CRITÉRIO DE OPORTUNIDADE (PRIORIDADE MÁXIMA):** Traga apenas anúncios que, em sua análise, foram publicados **HOJE ou ONTEM** e que o preço esteja nitidamente **abaixo do valor de mercado** para aquele produto/condição.
-3. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado e porque é uma oportunidade), link (URL do anúncio), e img (URL da imagem principal).
-4. Retorne APENAS o JSON no bloco de código Markdown. Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: \`\`\`json\n{"items": []}\n\`\`\`
+2. **CRITÉRIO DE OPORTUNIDADE:** Traga apenas anúncios que, em sua análise, estejam nitidamente **abaixo do valor de mercado** para aquele produto/condição.
+3. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), link (URL), e img (URL da imagem principal).
+
+RESPOSTA EXCLUSIVA: Sua resposta deve conter **APENAS** o bloco de código JSON. Não inclua texto explicativo, introduções, títulos ou qualquer outro caractere fora do bloco \`\`\`json.
+Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: \`\`\`json\n{"items": []}\n\`\`\`
 `;
 
 const userPrompt = `
@@ -36,7 +38,7 @@ Produto que estou procurando: ${produto}
 Cidade/Região de busca: ${cidade}
 Raio de busca (km): ${raio || 40}
 
-Execute a varredura agora e retorne apenas o JSON.
+Execute a varredura e retorne apenas o JSON, conforme instruído.
 `;
 
 const payload = {
@@ -52,7 +54,6 @@ maxOutputTokens: 1024,
 };
 
 try {
-// O fetch agora usa o nome de modelo corrigido
 const response = await fetch(
 `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`,
 {
@@ -81,12 +82,15 @@ let items = [];
 
 // O bloco de parsing mais robusto
 const tryParseJson = (text) => {
+// 1. Remove marcadores de bloco de código Markdown e espaços em branco desnecessários
 let cleanedText = text.replace(/```json\s*/g, '').replace(/\s*```/g, '').trim();
 
+// 2. Tenta fazer o parse do JSON
 try {
 const parsed = JSON.parse(cleanedText);
 return parsed;
 } catch (e) {
+// 3. Se falhar, tenta extrair o primeiro bloco {}
 const match = cleanedText.match(/\{[\s\S]*\}/);
 if (match) {
 try {
@@ -104,6 +108,7 @@ const parsedData = tryParseJson(jsonText);
 if (parsedData) {
 items = parsedData.items || parsedData;
 } else {
+// RETORNA ERRO SE O PARSING FALHAR
 return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: jsonText });
 }
 
