@@ -16,17 +16,18 @@ return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na 
 const { produto, cidade, raio } = req.body;
 if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
 
-const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
+// !!! MUDANÇA CRÍTICA: USANDO MODELO PRO MAIS ROBUSTO PARA TOOL USE !!!
+const MODEL_NAME = 'gemini-2.5-pro-preview-09-2025';
 
-// !!! PROMPT EXTREMAMENTE SIMPLIFICADO PARA TESTE DE VELOCIDADE !!!
+// PROMPT ORIGINAL COMPLEXO REINTRODUZIDO
 const systemPrompt = `
-Você é um agente de busca rápida.
-Seu único objetivo é usar a ferramenta de busca para encontrar os 3 primeiros anúncios do produto na região e retornar suas informações.
+Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
+Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço.
 
-INSTRUÇÕES:
-1. Use a ferramenta de busca (OLX, Desapega, Mercado Livre, etc.) para o produto e cidade.
-2. Não faça nenhuma análise de preço ou data. Apenas liste os 3 primeiros resultados.
-3. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, link (URL do anúncio), e img (URL da imagem principal).
+Regras de busca (USE A FERRAMENTA DE BUSCA):
+1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
+2. **CRITÉRIO DE OPORTUNIDADE (PRIORIDADE MÁXIMA):** Traga apenas anúncios que, em sua análise, foram publicados **HOJE ou ONTEM** e que o preço esteja nitidamente **abaixo do valor de mercado** para aquele produto/condição.
+3. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado e porque é uma oportunidade), link (URL do anúncio), e img (URL da imagem principal).
 4. Retorne APENAS o JSON no bloco de código Markdown. Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: \`\`\`json\n{"items": []}\n\`\`\`
 `;
 
@@ -71,9 +72,8 @@ const json = await response.json();
 const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
 if (!jsonText) {
-// Se falhar aqui, o problema é o timeout de execução da tool use
-console.error("Resposta da API vazia ou sem texto de candidato. Provável timeout interno da tool use.");
-return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use?)' });
+console.error("Resposta da API vazia ou sem texto de candidato. Possível timeout interno do modelo PRO.");
+return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use PRO?)' });
 }
 
 let items = [];
