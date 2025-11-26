@@ -16,19 +16,18 @@ return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na 
 const { produto, cidade, raio } = req.body;
 if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
 
-// Modelo mantido
 const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
 
-// PROMPT FINAL OTIMIZADO (Instruindo a retornar JSON em bloco de código Markdown)
+// !!! PROMPT EXTREMAMENTE SIMPLIFICADO PARA TESTE DE VELOCIDADE !!!
 const systemPrompt = `
-Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
-Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço.
+Você é um agente de busca rápida.
+Seu único objetivo é usar a ferramenta de busca para encontrar os 3 primeiros anúncios do produto na região e retornar suas informações.
 
-Regras de busca (USE A FERRAMENTA DE BUSCA):
-1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
-2. **CRITÉRIO DE OPORTUNIDADE:** Traga apenas anúncios que, em sua análise, foram publicados **HOJE ou ONTEM** e que o preço esteja nitidamente **abaixo do valor de mercado** para aquele produto/condição.
-3. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado e porque é uma oportunidade), link (URL do anúncio), e img (URL da imagem principal).
-4. Retorne APENAS o JSON. O JSON DEVE ser envolvido por marcadores de bloco de código Markdown (\`\`\`json e \`\`\`). Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: \`\`\`json\n{"items": []}\n\`\`\`
+INSTRUÇÕES:
+1. Use a ferramenta de busca (OLX, Desapega, Mercado Livre, etc.) para o produto e cidade.
+2. Não faça nenhuma análise de preço ou data. Apenas liste os 3 primeiros resultados.
+3. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, link (URL do anúncio), e img (URL da imagem principal).
+4. Retorne APENAS o JSON no bloco de código Markdown. Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: \`\`\`json\n{"items": []}\n\`\`\`
 `;
 
 const userPrompt = `
@@ -43,12 +42,11 @@ const payload = {
 contents: [
 { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
 ],
-// FERRAMENTA DE BUSCA REATIVADA
+// FERRAMENTA DE BUSCA ATIVA
 tools: [{ "google_search": {} }],
 generationConfig: {
 temperature: 0.0,
 maxOutputTokens: 1024,
-// REMOVIDO responseMimeType e responseSchema para permitir o uso de tools
 }
 };
 
@@ -73,24 +71,21 @@ const json = await response.json();
 const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
 if (!jsonText) {
-console.error("Resposta da API vazia ou sem texto de candidato.");
-// Este é o erro que você está vendo
-return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
+// Se falhar aqui, o problema é o timeout de execução da tool use
+console.error("Resposta da API vazia ou sem texto de candidato. Provável timeout interno da tool use.");
+return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use?)' });
 }
 
 let items = [];
 
-// O bloco de parsing mais robusto (mantido do código original)
+// O bloco de parsing mais robusto
 const tryParseJson = (text) => {
-// 1. Remove marcadores de bloco de código Markdown (```json e ```)
 let cleanedText = text.replace(/```json\s*/g, '').replace(/\s*```/g, '').trim();
 
-// 2. Tenta fazer o parse do JSON
 try {
 const parsed = JSON.parse(cleanedText);
 return parsed;
 } catch (e) {
-// 3. Se falhar, tenta extrair o primeiro bloco {}
 const match = cleanedText.match(/\{[\s\S]*\}/);
 if (match) {
 try {
@@ -108,11 +103,9 @@ const parsedData = tryParseJson(jsonText);
 if (parsedData) {
 items = parsedData.items || parsedData;
 } else {
-// Se todas as tentativas de parsing falharem, retornamos o erro com o texto bruto para depuração.
 return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: jsonText });
 }
 
-// Garante que o retorno é sempre um array
 return res.status(200).json({ items: Array.isArray(items) ? items : [] });
 
 } catch (err) {
