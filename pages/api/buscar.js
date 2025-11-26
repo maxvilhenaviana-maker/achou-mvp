@@ -17,8 +17,8 @@ export default async function handler(req, res) {
     const { produto, cidade, raio } = req.body;
     if (!produto || !cidade) return res.status(400).json({ error: 'Produto e cidade são obrigatórios' });
 
-    // MODELO PRO (Modelo mais forte para raciocínio e busca complexa, testado como estável neste ambiente)
-    const MODEL_NAME = 'gemini-2.5-pro';
+    // MODELO FLASH (Modelo mais econômico e rápido para evitar esgotamento de cota)
+    const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
 
     // URL DE PLACEHOLDER PARA LOGO: Referenciando o arquivo na pasta public
     const logoPlaceholderUrl = '/placeholder-120x90.png';
