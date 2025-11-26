@@ -17,8 +17,8 @@ export default async function handler(req, res) {
     const { produto, cidade, raio } = req.body;
     if (!produto || !cidade) return res.status(400).json({ error: 'Produto e cidade são obrigatórios' });
 
-    // MODELO PRO (Necessário para lidar com a complexidade da busca por "Oportunidade de Ouro" e evitar o timeout do modelo Flash)
-    const MODEL_NAME = 'gemini-2.5-pro';
+    // MODELO PRO MAIS RECENTE (gemini-3-pro-preview - Conforme documentação)
+    const MODEL_NAME = 'gemini-3-pro-preview';
 
     // URL DE PLACEHOLDER PARA LOGO: Referenciando o arquivo na pasta public (Alteração 1.1)
     const logoPlaceholderUrl = '/placeholder-120x90.png';
@@ -85,8 +85,8 @@ Execute a varredura e retorne apenas o JSON, conforme instruído.
 
         if (!jsonText) {
             // Tratamento de Timeout
-            console.error("Resposta da API vazia ou sem texto de candidato. Possível timeout interno do modelo PRO/FLASH.");
-            return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use PRO/FLASH?)' });
+            console.error("Resposta da API vazia ou sem texto de candidato. Possível timeout interno do modelo PRO/FLASH/PREVIEW.");
+            return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use PRO/FLASH/PREVIEW?)' });
         }
 
         let items = [];
