@@ -16,8 +16,9 @@ return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na 
 const { produto, cidade, raio } = req.body;
 if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
 
-// MODELO PRO para lidar com a complexidade da busca
-const MODEL_NAME = 'gemini-2.5-pro';
+// MODELO 1.5 PRO (O modelo "Pro" oficial mais avançado atualmente)
+// O Gemini 3.0 ainda não foi lançado publicamente na API.
+const MODEL_NAME = 'gemini-1.5-pro';
 
 // !!! CORREÇÃO CRÍTICA: INSTRUÇÃO DE SAÍDA EXCLUSIVA !!!
 const systemPrompt = `
