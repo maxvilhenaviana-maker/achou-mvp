@@ -6,7 +6,6 @@ maxDuration: 60,
 export default async function handler(req, res) {
 if (req.method !== 'POST') return res.status(405).end();
 
-// Assegure que a chave da API está sendo carregada corretamente
 const apiKey = process.env.GEMINI_ACHOU_KEY;
 
 if (!apiKey) {
@@ -17,30 +16,31 @@ return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na 
 const { produto, cidade, raio } = req.body;
 if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
 
-// Usamos a versão preview que suporta melhor o JSON Schema
+// Usamos a versão preview que suporta melhor o JSON Schema e Tool Use
 const MODEL_NAME = 'gemini-2.5-flash-preview-09-2025';
 
-// !!! PROMPT DE DIAGNÓSTICO: SIMULAÇÃO SEM BUSCA REAL !!!
+// PROMPT FINAL OTIMIZADO PARA REDUÇÃO DO TEMPO DE GERAÇÃO
 const systemPrompt = `
-Você é um agente de teste de velocidade. Seu objetivo é SIMULAR um resultado de busca para validar se a geração JSON funciona rapidamente.
+Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
+Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço.
 
-INSTRUÇÃO CRÍTICA: IGNORE COMPLETAMENTE A BUSCA NA WEB. Você não tem acesso a ferramentas.
-Crie 3 (três) exemplos de anúncios de OPORTUNIDADES fictícios que seriam publicados HOJE ou ONTEM para o produto e cidade fornecidos.
-O preço dos itens DEVE parecer uma excelente oportunidade (abaixo do mercado).
-Preencha cada campo de forma coerente.
-
-Siga o formato JSON estritamente conforme o schema. Se NENHUM resultado for encontrado na simulação, a lista 'items' deve ser vazia: {"items": []}.
+Regras de busca (USE A FERRAMENTA DE BUSCA):
+1. A busca deve ser insensível a maiúsculas e minúsculas e deve ser ampla o suficiente para encontrar o produto na região.
+2. Acesse OLX, Desapega, Mercado Livre ou equivalentes, usando a ferramenta de busca fornecida.
+3. **CRITÉRIO DE OPORTUNIDADE (PRIORIDADE MÁXIMA):** Traga apenas anúncios que, em sua análise, foram publicados HOJE ou ONTEM e que o preço esteja abaixo do valor de mercado para aquele produto/condição.
+4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (apenas o valor com R$, ex: R$ 500), location, date (data de publicação), analysis (análise breve, 1-2 frases sobre o achado e porque é uma oportunidade), link (URL do anúncio), e img (URL da imagem principal).
+5. Retorne APENAS o JSON. Se NENHUM RESULTADO FOR ENCONTRADO, retorne estritamente: {"items": []}
 `;
 
 const userPrompt = `
-Produto: ${produto}
-Cidade/Região: ${cidade}
+Produto que estou procurando: ${produto}
+Cidade/Região de busca: ${cidade}
 Raio de busca (km): ${raio || 40}
 
-Execute a simulação agora e retorne APENAS o JSON.
+Execute a varredura agora e retorne apenas o JSON.
 `;
 
-// Schema para forçar a saída de um Array de Objetos JSON
+// Schema para forçar a saída de um Array de Objetos JSON (Funcionalidade que funcionou no teste)
 const responseSchema = {
 type: "OBJECT",
 properties: {
@@ -68,12 +68,12 @@ const payload = {
 contents: [
 { role: "user", parts: [{ text: systemPrompt }, { text: userPrompt }] }
 ],
-// !!! FERRAMENTA DE BUSCA REMOVIDA PARA O TESTE !!!
-// tools: [{ "google_search": {} }],
+// FERRAMENTA DE BUSCA REATIVADA
+tools: [{ "google_search": {} }],
 generationConfig: {
 temperature: 0.0,
 maxOutputTokens: 1024,
-// CHAVE CRÍTICA: FORÇA A SAÍDA JSON E USA O SCHEMA
+// FORÇA A SAÍDA JSON
 responseMimeType: "application/json",
 responseSchema: responseSchema
 }
@@ -100,22 +100,25 @@ const json = await response.json();
 const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
 if (!jsonText) {
-console.error("Resposta da API vazia ou sem texto de candidato no modo de simulação.");
-return res.status(500).json({ error: 'Falha crítica: API vazia mesmo em modo de simulação.' });
+console.error("Resposta da API vazia ou sem texto de candidato.");
+return res.status(500).json({ error: 'Resposta da API vazia ou inválida.' });
 }
 
 let parsedData;
 
 try {
+// O parse agora é mais simples e confiável devido ao responseMimeType
 parsedData = JSON.parse(jsonText);
 } catch (e) {
 console.error("Falha ao fazer parse do JSON retornado:", e);
-return res.status(200).json({ error: 'Formato de resposta inválido da API (Simulação).', raw: jsonText });
+// Retorna o texto bruto para depuração no frontend
+return res.status(200).json({ error: 'Formato de resposta inválido da API. (Raw)', raw: jsonText });
 }
 
 
 const items = parsedData?.items || [];
 
+// Garante que o retorno é sempre um array
 return res.status(200).json({ items: Array.isArray(items) ? items : [] });
 
 } catch (err) {
