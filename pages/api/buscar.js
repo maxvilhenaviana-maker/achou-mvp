@@ -18,7 +18,7 @@ if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade 
 
 // MODELO 3.0 PRO (Conforme solicitado)
 // Certifique-se de que sua API Key tem acesso a este modelo.
-const MODEL_NAME = 'gemini-3.0-pro';
+const MODEL_NAME = 'Gemini 3 Pro';
 
 // !!! CORREÇÃO CRÍTICA: INSTRUÇÃO DE SAÍDA EXCLUSIVA !!!
 const systemPrompt = `
