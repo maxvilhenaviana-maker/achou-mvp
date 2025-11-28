@@ -1,43 +1,40 @@
 export default function ResultCard({ item }) {
+
+  // item expected keys: title, price, location, date, analysis, link, img
+
   return (
-    <div style={styles.card}>
-      {item.image_url && (
-        <img src={item.image_url} style={styles.image} alt={item.title} />
-      )}
 
-      <div>
-        <h3>{item.title}</h3>
-        <p><b>Preço:</b> {item.price}</p>
-        <p><b>Local:</b> {item.location}</p>
-        <p><b>Data:</b> {item.date}</p>
+    <div className="card" >
 
-        {item.analysis && (
-          <p>
-            <b>Análise:</b> {item.analysis}
-          </p>
-        )}
+      <img className="thumb" src={item.img || '/placeholder-120x90.png'} alt={item.title} />
 
-        <a
-          href={item.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={styles.link}
-        >
-          Ver anúncio →
-        </a>
+      <div style={{flex:1}}>
+
+        <p className="title">{item.title}</p>
+
+        <p className="price">{ item.price ? `R$ ${item.price}` : '—' }</p>
+
+        <p className="small">{item.location || '—'} • {item.date || '—'}</p>
+
+        <p style={{marginTop:8}}>{item.analysis || ''}</p>
+
       </div>
+
+      <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
+
+        <a href={item.link || '#'} target="\_blank" rel="noreferrer">
+
+          <button className="btn">Ver anúncio</button>
+
+        </a>
+
+        <a href={item.link || '#'} target="\_blank" rel="noreferrer" className="small">Mais detalhes</a>
+
+      </div>
+
     </div>
+
   );
+
 }
 
-const styles = {
-  card: {
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    padding: 15,
-    display: "flex",
-    gap: 15
-  },
-  image: { width: 120, height: "auto", borderRadius: 8 },
-  link: { color: "blue", fontWeight: "bold" }
-};
