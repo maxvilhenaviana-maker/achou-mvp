@@ -22,7 +22,6 @@ async function callOpenAI(body, apiKey) {
   return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
-// Teste rápido de suporte a tools/web_search
 async function detectOpenAIWebSupport(apiKey) {
   try {
     const testBody = {
@@ -39,7 +38,6 @@ async function detectOpenAIWebSupport(apiKey) {
   }
 }
 
-// Busca via Bing (fallback)
 async function searchBing(query, bingKey) {
   const url = "https://api.bing.microsoft.com/v7.0/search?q=" + encodeURIComponent(query) + "&count=10";
   const resp = await fetch(url, { headers: { "Ocp-Apim-Subscription-Key": bingKey } });
@@ -131,7 +129,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Fallback: anúncios simulados
   const fallbackItems = [
     { title: `Anúncio simulado de ${produto}`, price: "R$ 100", location: cidade, date: "recentemente", analysis: "(estimado)", link: "#", img: placeholderImg },
   ];
