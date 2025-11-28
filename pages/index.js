@@ -1,88 +1,185 @@
-import { useState } from "react";
-import ResultCard from "../components/ResultCard";
+import { useState } from 'react';
+
+import ResultCard from '../components/ResultCard';
+
+
 
 export default function Home() {
-  const [produto, setProduto] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [raio, setRaio] = useState(40);
-  const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState([]);
-  const [error, setError] = useState("");
 
-  async function buscar() {
-    setLoading(true);
-    setError("");
-    setItems([]);
+  const \[produto, setProduto] = useState('');
 
-    try {
-      const resp = await fetch("/api/buscar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ produto, cidade, raio })
-      });
+  const \[cidade, setCidade] = useState('');
 
-      const data = await resp.json();
+  const \[loading, setLoading] = useState(false);
 
-      if (!resp.ok) {
-        setError("Erro ao buscar: " + JSON.stringify(data));
-      } else {
-        setItems(data.items || []);
-      }
-    } catch (e) {
-      setError("Erro inesperado: " + e.toString());
+  const \[items, setItems] = useState(null);
+
+  const \[error, setError] = useState(null);
+
+
+
+  async function buscar(e){
+
+    e?.preventDefault();
+
+    if(!produto || !cidade) {
+
+      setError('Preencha produto e cidade');
+
+      return;
+
     }
 
-    setLoading(false);
+    setError(null);
+
+    setLoading(true);
+
+    setItems(null);
+
+    try{
+
+      const resp = await fetch('/api/buscar', {
+
+        method:'POST',
+
+        headers:{'Content-Type':'application/json'},
+
+        body: JSON.stringify({ produto, cidade })
+
+      });
+
+      const json = await resp.json();
+
+      if(json.error) {
+
+        setError(json.error);
+
+      } else if(json.items) {
+
+        // mapear campos caso o modelo retorne image\_url em vez de img
+
+        const normalized = json.items.map(it => ({
+
+          title: it.title || it.titulo || 'Sem título',
+
+          price: it.price || it.preco || '',
+
+          location: it.location || it.local || '',
+
+          date: it.date || it.data || '',
+
+          analysis: it.analysis || it.analise || '',
+
+          link: it.link || it.url || '#',
+
+          img: it.image\_url || it.img || '/placeholder-120x90.png'
+
+        }));
+
+        setItems(normalized);
+
+      } else if(json.raw) {
+
+        setItems(\[{ title: 'Resultado bruto', price:'—', location:'—', date:'—', analysis: json.raw, link:'#' }]);
+
+      }
+
+    } catch(err){
+
+      setError('Erro ao buscar. Veja o console.');
+
+      console.error(err);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
   }
 
+
+
   return (
-    <div style={styles.container}>
-      <h1>ACHOU.NET.BR</h1>
-      <p>Buscador inteligente de oportunidades</p>
 
-      <div style={styles.form}>
-        <input
-          style={styles.input}
-          placeholder="Produto..."
-          value={produto}
-          onChange={(e) => setProduto(e.target.value)}
-        />
+    <div className="container">
 
-        <input
-          style={styles.input}
-          placeholder="Cidade..."
-          value={cidade}
-          onChange={(e) => setCidade(e.target.value)}
-        />
+      <header className="header">
 
-        <input
-          style={styles.input}
-          type="number"
-          value={raio}
-          onChange={(e) => setRaio(e.target.value)}
-        />
+        <div className="logo">
 
-        <button style={styles.button} onClick={buscar}>
-          Buscar
-        </button>
-      </div>
+          <img src="/logo-512.png" alt="achou.net.br logo"/>
 
-      {loading && <p>🔍 Buscando anúncios reais...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+          <div>
 
-      <div style={styles.results}>
-        {items.map((item, i) => (
-          <ResultCard key={i} item={item} />
-        ))}
-      </div>
+            <div style={{fontWeight:700}}>achou.net.br</div>
+
+            <div style={{fontSize:12,color:'var(--muted)'}}>Radar de achados — anúncios do dia</div>
+
+          </div>
+
+        </div>
+
+      </header>
+
+
+
+      <main>
+
+        <div className="hero">
+
+          <h1>Encontre oportunidades publicadas HOJE</h1>
+
+          <p className="small">Buscamos OLX, Desapega e Mercado Livre em tempo real — sem cadastro.</p>
+
+
+
+          <form className="searchRow" onSubmit={buscar} style={{marginTop:12}}>
+
+            <input className="input" value={produto} onChange={e=>setProduto(e.target.value)} placeholder="O que você procura? (ex: iPhone 8, Monitor 24)"/>
+
+            <input className="input" value={cidade} onChange={e=>setCidade(e.target.value)} placeholder="Região ou cidade (ex: Belo Horizonte)"/>
+
+            <button type="submit" className="btn">{loading? 'Buscando…' : 'Buscar agora'}</button>
+
+          </form>
+
+        </div>
+
+
+
+        <div className="resultsHeader">
+
+          <div style={{fontWeight:700}}>{ produto ? `Resultados para: ${produto} — ${cidade}` : 'Nenhuma busca ainda'}</div>
+
+          <div className="small">Resultados mostram anúncios publicados HOJE ou ONTEM</div>
+
+        </div>
+
+
+
+        {error \&\& <div style={{color:'red',marginBottom:12}}>{error}</div>}
+
+
+
+        <div>
+
+          {items?.length ? items.map((it, idx) => <ResultCard key={idx} item={it} />) : null}
+
+        </div>
+
+
+
+        <div className="footer">
+
+          <div><strong>Aviso legal:</strong> achou.net.br apenas organiza anúncios públicos. Não garantimos disponibilidade nem veracidade. Verifique sempre o vendedor.</div>
+
+        </div>
+
+      </main>
+
     </div>
-  );
-}
 
-const styles = {
-  container: { maxWidth: 700, margin: "0 auto", padding: 20 },
-  form: { display: "flex", gap: 10, marginBottom: 20 },
-  input: { padding: 10, flex: 1 },
-  button: { padding: "10px 20px", background: "black", color: "white" },
-  results: { display: "flex", flexDirection: "column", gap: 20 }
-};
+  );
+
+}
