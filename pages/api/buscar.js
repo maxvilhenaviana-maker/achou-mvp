@@ -1,3 +1,4 @@
+// pages/api/buscar.js
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_BASE = "https://api.openai.com/v1/responses";
@@ -12,27 +13,45 @@ async function callOpenAI(body, apiKey) {
     body: JSON.stringify(body),
   });
   const text = await resp.text();
+  let parsed;
   try {
-    return { ok: resp.ok, status: resp.status, body: JSON.parse(text), raw: text };
+    parsed = JSON.parse(text);
   } catch {
-    return { ok: resp.ok, status: resp.status, body: { rawText: text }, raw: text };
+    parsed = { rawText: text };
   }
+  return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
 function normalizeItems(rawItems) {
-  return rawItems.map((it) => {
-    const priceNum = parseFloat(it.price.replace(/\D/g, "")) || 0;
-    return {
-      title: it.title || "Sem título",
-      price: it.price || "",
-      price_num: priceNum,
-      location: it.location || "",
-      date: it.date || "",
-      analysis: it.analysis || "",
-      link: it.link || "#",
-      img: "/placeholder-120x90.png",
-    };
-  });
+  const itemsWithPrice = rawItems
+    .map((it) => {
+      const priceStr = it.price !== undefined && it.price !== null ? String(it.price) : '';
+      const priceNum = parseFloat(priceStr.replace(/\D/g, "")) || null;
+
+      return {
+        title: it.title || "Sem título",
+        price: priceStr,
+        price_num: priceNum,
+        location: it.location || "",
+        date: it.date || "",
+        analysis: it.analysis || "",
+        link: it.link || "#",
+        img: "/placeholder-120x90.png",
+      };
+    })
+    .filter((it) => it.price_num !== null); // descarta itens sem preço
+
+  // Cálculos de min, médio e max
+  const prices = itemsWithPrice.map(it => it.price_num);
+  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+  const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+  const avgPrice = prices.length > 0 ? (prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+
+  // Adiciona estatísticas no analysis
+  return itemsWithPrice.map(it => ({
+    ...it,
+    analysis: `${it.analysis || ''} (Menor: R$${minPrice}, Médio: R$${avgPrice.toFixed(2)}, Maior: R$${maxPrice})`
+  }));
 }
 
 export default async function handler(req, res) {
@@ -49,20 +68,11 @@ export default async function handler(req, res) {
       model: "gpt-4.1",
       tools: [{ type: "web_search" }],
       input: [
-        { role: "system", content: "Você é um assistente especializado em buscar anúncios recentes na web e analisar as melhores oportunidades." },
-        {
-          role: "user",
-          content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. 
-          Analise todos os resultados encontrados e retorne **somente os 3 melhores anúncios** considerando estas prioridades: 
-          1) Evitar produtos com defeito; 
-          2) Em caso de empate de preço, escolher os publicados ou alterados mais recentemente; 
-          3) Em caso de empate, escolher os localizados mais centrais.
-          Para cada resultado, inclua: title, price, location, date, link individual, e um campo analysis que descreva o valor mais baixo, médio e mais alto das ofertas analisadas.
-          Retorne apenas um JSON válido com array "items".`
-        }
+        { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
+        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. Selecione apenas os 3 melhores anúncios considerando: preço mais baixo, sem defeito, mais recente e localização central. Retorne JSON apenas com um array "items" (title, price, location, date, analysis, link).` }
       ],
       temperature: 0,
-      max_output_tokens: 2000
+      max_output_tokens: 1500
     };
 
     const openaiResp = await callOpenAI(requestBody, apiKey);
@@ -91,7 +101,6 @@ export default async function handler(req, res) {
     }
 
     const normalized = normalizeItems(items);
-
     return res.status(200).json({ items: normalized });
 
   } catch (err) {
