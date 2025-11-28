@@ -1,7 +1,8 @@
 // pages/api/buscar.js
-// Busca de anúncios reais usando OpenAI GPT-4.1 com web search
-// Requisitos de ambiente:
-//   OPENAI_API_KEY = sk-... (com acesso a web search)
+// Migrado do Gemini -> OpenAI com fallback Bing / fallback sem-web.
+// Requisitos env (no Vercel):
+//   OPENAI_API_KEY = sk-...
+//   (opcional) BING_API_KEY = <sua chave Bing Search v7>
 
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
@@ -20,90 +21,36 @@ async function callOpenAI(body, apiKey) {
   let parsed;
   try {
     parsed = JSON.parse(text);
-  } catch {
+  } catch (e) {
     parsed = { rawText: text };
   }
   return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
-function normalizeItems(rawItems) {
-  const placeholderImg = "/placeholder-120x90.png";
-  return rawItems.map(it => ({
-    title: it.title || "Sem título",
-    price: it.price || "",
-    location: it.location || "",
-    date: it.date || "",
-    analysis: it.analysis || "",
-    link: it.link || "#",
-    img: it.image_url || it.img || placeholderImg,
-  }));
-}
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY não configurada" });
-
-  const { produto, cidade } = req.body || {};
-  if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
-
-  // Prompt simples para testar conexão à web
-  const systemPrompt = `Você é um agente de busca de anúncios de produtos usados no Brasil.
-  Seu trabalho é devolver JSON válido com "items" contendo: title, price, location, date, analysis, link, image_url.`;
-  const userPrompt = `Busque anúncios recentes de "${produto}" em "${cidade}" publicados recentemente na web. 
-  Retorne apenas JSON com "items".`;
-
-  const requestBody = {
-    model: "gpt-4.1",
-    tools: [{ type: "web_search" }], // ativa busca na internet
-    input: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.0,
-    max_output_tokens: 1200,
+async function detectOpenAIWebSupport(apiKey) {
+  const testBody = {
+    model: "gpt-4o-mini",
+    tools: [{ type: "web_search" }],
+    input: "health check: web search availability",
+    max_output_tokens: 10,
   };
-
   try {
-    const openaiResp = await callOpenAI(requestBody, apiKey);
-
-    if (!openaiResp.ok) {
-      console.error("[buscar] OpenAI error:", openaiResp.body || openaiResp.raw);
-      return res.status(500).json({ error: "Erro na OpenAI", details: openaiResp.body || openaiResp.raw });
+    const r = await callOpenAI(testBody, apiKey);
+    if (r.ok && !r.body?.error) return { webAvailable: true, details: r.body };
+    const errMsg = (r.body?.error?.message || "").toLowerCase();
+    if (errMsg.includes("tools") || errMsg.includes("web") || errMsg.includes("unsupported") || errMsg.includes("unknown parameter")) {
+      return { webAvailable: false, details: r.body };
     }
-
-    // Extrai JSON da resposta
-    let items = [];
-    try {
-      const text = openaiResp.body.output_text || openaiResp.body.output?.[0]?.content?.find(c => c.type === "output_text")?.text;
-      if (text) {
-        const cleaned = text.replace(/```json|```/g, "").trim();
-        const parsed = JSON.parse(cleaned);
-        items = parsed.items || [];
-      }
-    } catch (e) {
-      console.error("[buscar] falha ao parsear resposta OpenAI:", e, openaiResp.body);
-    }
-
-    if (!items.length) {
-      // fallback: anúncios plausíveis estimados
-      items = [
-        {
-          title: `${produto} usado em ${cidade}`,
-          price: "R$ 0,00",
-          location: cidade,
-          date: "recente",
-          analysis: "(estimado)",
-          link: "#",
-          image_url: "/placeholder-120x90.png",
-        },
-      ];
-    }
-
-    return res.status(200).json({ items: normalizeItems(items) });
+    return { webAvailable: false, details: r.body };
   } catch (e) {
-    console.error("[buscar] erro inesperado:", e);
-    return res.status(500).json({ error: "Erro interno", details: String(e) });
+    return { webAvailable: false, details: String(e) };
   }
 }
+
+async function searchBing(query, bingKey) {
+  const url = "https://api.bing.microsoft.com/v7.0/search?q=" + encodeURIComponent(query) + "&count=10";
+  const resp = await fetch(url, {
+    headers: { "Ocp-Apim-Subscription-Key": bingKey },
+  });
+  if (!resp.ok) {
+    const txt = a
