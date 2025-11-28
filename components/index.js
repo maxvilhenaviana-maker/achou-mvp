@@ -12,10 +12,7 @@ const Spinner = () => (
     marginRight: '8px'
   }}>
     <style jsx global>{`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     `}</style>
   </div>
 );
@@ -30,38 +27,19 @@ export default function Home() {
 
   async function buscar(e){
     e?.preventDefault();
-    if(!produto || !cidade) {
-      setError('Preencha produto e cidade');
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    setItems([]);
-    setSearchExecuted(false);
+    if(!produto || !cidade) { setError('Preencha produto e cidade'); return; }
+    setError(null); setLoading(true); setItems([]); setSearchExecuted(false);
 
     try{
-      const payload = { produto, cidade };
       const resp = await fetch('/api/buscar', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ produto, cidade })
       });
       const json = await resp.json();
 
-      if(json.error) {
-        setError(json.error + (json.details ? ` (${json.details.substring(0, 80)}...)` : ''));
-      } else if(json.items) {
-        setItems(json.items);
-      } else if(json.raw) {
-        setItems([{
-          title: 'Resultado bruto (falha no formato JSON)',
-          price:'—',
-          location:'—',
-          date:'—',
-          analysis: json.raw.substring(0, 500) + (json.raw.length > 500 ? '...' : ''),
-          link:'#'
-        }]);
-      }
+      if(json.error) setError(json.error);
+      else if(json.items) setItems(json.items);
 
     } catch(err){
       setError('Erro ao buscar. Verifique sua conexão e o console.');
@@ -90,54 +68,43 @@ export default function Home() {
           <p className="small">Buscamos OLX, Desapega e Mercado Livre em tempo real — sem cadastro.</p>
 
           <form className="searchRow" onSubmit={buscar} style={{marginTop:12}}>
-            <input className="input" value={produto} onChange={e=>setProduto(e.target.value)} placeholder="O que você procura? (ex: iPhone 8, Monitor 24)"/>
-            <input className="input" value={cidade} onChange={e=>setCidade(e.target.value)} placeholder="Região ou cidade (ex: Belo Horizonte)"/>
+            <input className="input" value={produto} onChange={e=>setProduto(e.target.value)} placeholder="O que você procura?"/>
+            <input className="input" value={cidade} onChange={e=>setCidade(e.target.value)} placeholder="Região ou cidade"/>
             <button type="submit" className="btn" disabled={loading}>{loading? 'Buscando…' : 'Buscar agora'}</button>
           </form>
         </div>
 
         <div className="resultsHeader">
-          <div style={{fontWeight:700}}>{ (produto && searchExecuted) ? `Resultados para: ${produto} — ${cidade}` : 'Nenhuma busca ainda'}</div>
-          <div className="small">Resultados mostram anúncios publicados recentemente com preço abaixo do mercado</div>
+          {produto && searchExecuted && <div style={{fontWeight:700}}>
+            Resultados para: {produto} — {cidade}
+            <p className="small">As 3 melhores ofertas analisadas pelo radar.</p>
+          </div>}
         </div>
 
-        {error && <div style={{color:'red',marginBottom:12, padding: '12px', background: '#fee', borderRadius: '8px'}}>{error}</div>}
+        {error && <div style={{color:'red',marginBottom:12,padding:'12px',background:'#fee',borderRadius:'8px'}}>{error}</div>}
 
         {loading && (
-          <div style={{
-            textAlign: 'center',
-            margin: '40px 0',
-            padding: '20px',
-            border: '1px solid #ccc',
-            borderRadius: '8px',
-            background: '#fff',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center'
-          }}>
-            <div style={{display:'flex', alignItems:'center', marginBottom: '10px'}}>
+          <div style={{textAlign:'center',margin:'40px 0',padding:'20px',border:'1px solid #ccc',borderRadius:'8px',background:'#fff',display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <div style={{display:'flex',alignItems:'center',marginBottom:'10px'}}>
               <Spinner />
-              <h3 style={{margin: 0, color: 'var(--dark)'}}>Radar em Processamento...</h3>
+              <h3 style={{margin:0,color:'var(--dark)'}}>Radar em Processamento...</h3>
             </div>
-            <p style={{color: 'var(--muted)', maxWidth: '500px'}}>
-              Estamos vasculhando a web para encontrar anúncios publicados recentemente e **analisando o preço de mercado** para garantir que seja uma oportunidade. Este processo é complexo e pode levar alguns segundos.
-            </p>
           </div>
         )}
 
         <div>
-          {items.length > 0 && items.map((it, idx) => <ResultCard key={idx} item={it} />)}
+          {items.length > 0 && items.map((it, idx) => <ResultCard key={idx} item={it} highlight={idx===0} />)}
 
-          {items.length === 0 && searchExecuted && !loading && produto && cidade && (
-            <div style={{textAlign: 'center', margin: '40px 0', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', background: '#fff'}}>
-              <h3 style={{marginTop: 0, color: 'var(--dark)'}}>Nenhum Achado Recente</h3>
-              <p style={{color: 'var(--muted)'}}>O radar não encontrou nenhum anúncio para **"{produto}"** em **{cidade}** publicado **recentemente** que estivesse **abaixo do valor de mercado**. Tente refinar ou ampliar a busca!</p>
+          {items.length === 0 && searchExecuted && !loading && (
+            <div style={{textAlign:'center',margin:'40px 0',padding:'20px',border:'1px solid #ccc',borderRadius:'8px',background:'#fff'}}>
+              <h3 style={{marginTop:0,color:'var(--dark)'}}>Nenhum Achado Recente</h3>
+              <p style={{color:'var(--muted)'}}>O radar não encontrou anúncios recentes abaixo do valor de mercado.</p>
             </div>
           )}
         </div>
 
         <div className="footer">
-          <div><strong>Aviso legal:</strong> achou.net.br apenas organiza anúncios públicos. Não garantimos disponibilidade nem veracidade. Verifique sempre o vendedor.</div>
+          <div><strong>Aviso legal:</strong> achou.net.br apenas organiza anúncios públicos. Verifique sempre o vendedor.</div>
         </div>
       </main>
     </div>
