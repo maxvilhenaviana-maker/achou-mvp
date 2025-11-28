@@ -3,7 +3,6 @@ export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_BASE = "https://api.openai.com/v1/responses";
 
-// Função para chamar a API OpenAI
 async function callOpenAI(body, apiKey) {
   const resp = await fetch(OPENAI_BASE, {
     method: "POST",
@@ -13,6 +12,7 @@ async function callOpenAI(body, apiKey) {
     },
     body: JSON.stringify(body),
   });
+
   const text = await resp.text();
   let parsed;
   try {
@@ -23,69 +23,32 @@ async function callOpenAI(body, apiKey) {
   return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
-// Normaliza itens recebidos da OpenAI
-function normalizeItems(rawItems, placeholderImg) {
-  return rawItems.map((it) => ({
-    title: it.title || "Sem título",
-    price: it.price || "",
-    location: it.location || "",
-    date: it.date || "",
-    analysis: it.analysis || "",
-    link: it.link || "#",
-    img: it.img || placeholderImg || "/placeholder-120x90.png",
-  }));
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY não configurada" });
 
-  const placeholderImg = "/placeholder-120x90.png";
-
   const { produto, cidade } = req.body || {};
   if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
 
-  try {
-    const requestBody = {
-      model: "gpt-4.1",
-      tools: [{ type: "web_search" }],
-      input: [
-        { role: "system", content: `Você é um assistente que busca anúncios recentes na web.` },
-        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e retorne apenas JSON com um array "items", onde cada item tem title, price, location, date, analysis, link, img.` }
-      ],
-      temperature: 0,
-      max_output_tokens: 1500
-    };
+  // Corpo da requisição para GPT-4.1 com Web Search
+  const requestBody = {
+    model: "gpt-4.1",
+    tools: [{ type: "web_search" }],
+    input: [
+      { role: "system", content: `Você é um assistente que busca anúncios recentes na web.` },
+      { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e devolva JSON com "items". Retorne apenas JSON.` },
+    ],
+    temperature: 0.0,
+    max_output_tokens: 1200,
+  };
 
-    const openaiResp = await callOpenAI(requestBody, apiKey);
+  const openaiResp = await callOpenAI(requestBody, apiKey);
 
-    if (!openaiResp.ok) {
-      console.error("[buscar] Erro na resposta OpenAI:", openaiResp.body);
-      return res.status(500).json({ error: "Erro ao buscar na OpenAI", details: JSON.stringify(openaiResp.body).substring(0, 300) });
-    }
+  // Imprime tudo no log para depuração
+  console.log("[buscar] resposta completa OpenAI:", JSON.stringify(openaiResp, null, 2));
 
-    // Tenta extrair os items do JSON retornado
-    let items = [];
-    if (openaiResp.body?.output?.length > 0) {
-      for (const out of openaiResp.body.output) {
-        if (out.type === "tool_result" && out.tool?.type === "web_search" && out.content?.[0]?.text) {
-          try {
-            const parsed = JSON.parse(out.content[0].text);
-            if (parsed.items) items = parsed.items;
-          } catch (e) {
-            console.error("[buscar] falha ao parsear JSON da OpenAI:", e);
-          }
-        }
-      }
-    }
-
-    const normalized = normalizeItems(items, placeholderImg);
-    return res.status(200).json({ items: normalized });
-
-  } catch (err) {
-    console.error("[buscar] Erro inesperado:", err);
-    return res.status(500).json({ error: "Erro inesperado no servidor", details: String(err) });
-  }
+  // Retorna a resposta bruta para o front-end
+  return res.status(200).json(openaiResp);
 }
