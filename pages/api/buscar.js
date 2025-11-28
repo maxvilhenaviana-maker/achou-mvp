@@ -12,6 +12,7 @@ async function callOpenAI(body, apiKey) {
     },
     body: JSON.stringify(body),
   });
+
   const text = await resp.text();
   let parsed;
   try {
@@ -28,7 +29,7 @@ async function detectOpenAIWebSupport(apiKey) {
       model: "gpt-4o-mini",
       tools: [{ type: "web_search" }],
       input: "health check: web search availability",
-      max_output_tokens: 16, // mínimo
+      max_output_tokens: 16, // corrigido mínimo permitido
     };
     const r = await callOpenAI(testBody, apiKey);
     if (r.ok && !r.body?.error) return { webAvailable: true, details: r.body };
@@ -60,49 +61,37 @@ export default async function handler(req, res) {
   const { produto, cidade } = req.body || {};
   if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
 
+  // Detecta se OpenAI Web Search está disponível
   const detect = await detectOpenAIWebSupport(apiKey);
-  if (!detect.webAvailable) {
-    console.error("[buscar] Chave OpenAI não permite web_search:", detect.details);
-    return res.status(500).json({ error: "A chave OpenAI não permite buscas na web", details: detect.details });
-  }
 
-  const requestBody = {
-    model: "gpt-4.1",
-    tools: [{ type: "web_search" }],
-    input: [
-      {
-        role: "system",
-        content: `Você é um agente que busca anúncios de produtos usados no Brasil. Busque anúncios de "${produto}" em "${cidade}", publicados recentemente.`
-      },
-      {
-        role: "user",
-        content: `Produto: ${produto}\nCidade: ${cidade}\nRetorne apenas JSON válido no formato: {"items":[{"title":"","price":"","location":"","date":"","analysis":"","link":"","img":""}]}`
+  if (detect.webAvailable) {
+    try {
+      const requestBody = {
+        model: "gpt-4.1",
+        tools: [{ type: "web_search" }],
+        input: [
+          { role: "system", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e devolva JSON com "items".` },
+          { role: "user", content: `Produto: ${produto}\nCidade: ${cidade}\nRetorne apenas JSON.` },
+        ],
+        temperature: 0.0,
+        max_output_tokens: 1200,
+      };
+
+      const openaiResp = await callOpenAI(requestBody, apiKey);
+      if (!openaiResp.ok) {
+        console.error("[buscar] Erro na resposta OpenAI:", openaiResp.body);
+        return res.status(500).json({ error: "Falha na busca OpenAI", details: openaiResp.body });
       }
-    ],
-    temperature: 0.0,
-    max_output_tokens: 1200,
-  };
 
-  const openaiResp = await callOpenAI(requestBody, apiKey);
-  if (!openaiResp.ok) {
-    console.error("[buscar] Erro na resposta OpenAI:", openaiResp.body || openaiResp.raw);
-    return res.status(500).json({ error: "Falha na busca OpenAI", details: openaiResp.body || openaiResp.raw });
-  }
+      let items = openaiResp.body.items || [];
+      const normalized = normalizeItems(items, placeholderImg);
+      return res.status(200).json({ items: normalized });
 
-  let items = [];
-  try {
-    const body = openaiResp.body;
-    if (body?.items) items = body.items;
-    else if (body.output_text) {
-      const cleaned = body.output_text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      items = parsed.items || [];
+    } catch (err) {
+      console.error("[buscar] Falha ao processar OpenAI:", err);
+      return res.status(500).json({ error: "Erro ao processar OpenAI", details: String(err) });
     }
-  } catch (e) {
-    console.error("[buscar] Falha ao extrair items da resposta OpenAI:", e, openaiResp.body);
-    return res.status(500).json({ error: "Falha ao processar resposta OpenAI", details: String(e) });
   }
 
-  const normalized = normalizeItems(items, placeholderImg);
-  return res.status(200).json({ items: normalized });
+  return res.status(500).json({ error: "Busca web não disponível no momento." });
 }
