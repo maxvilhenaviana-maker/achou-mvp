@@ -1,3 +1,4 @@
+// pages/api/buscar.js
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_BASE = "https://api.openai.com/v1/responses";
@@ -12,19 +13,18 @@ async function callOpenAI(body, apiKey) {
     body: JSON.stringify(body),
   });
   const text = await resp.text();
-  let parsed;
   try {
-    parsed = JSON.parse(text);
+    return { ok: resp.ok, status: resp.status, body: JSON.parse(text), raw: text };
   } catch {
-    parsed = { rawText: text };
+    return { ok: resp.ok, status: resp.status, body: { rawText: text }, raw: text };
   }
-  return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
 function normalizeItems(rawItems) {
   return rawItems.map((it) => ({
     title: it.title || "Sem título",
     price: it.price || "",
+    price_num: parseFloat(it.price.replace(/\D/g, "")) || 0,
     location: it.location || "",
     date: it.date || "",
     analysis: it.analysis || "",
@@ -48,7 +48,12 @@ export default async function handler(req, res) {
       tools: [{ type: "web_search" }],
       input: [
         { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
-        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. Retorne JSON apenas com um array "items" (title, price, location, date, analysis, link).` }
+        {
+          role: "user",
+          content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente.
+          Retorne JSON apenas com um array "items" contendo: title, price, location, date, analysis, link.
+          Analise os resultados e retorne apenas os 3 melhores anúncios segundo preço e relevância.`
+        }
       ],
       temperature: 0,
       max_output_tokens: 1500
@@ -79,10 +84,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // Pega apenas os itens 3 e 4 (índices 2 e 3) para teste
-    const selectedItems = items.slice(2, 4);
-    const normalized = normalizeItems(selectedItems);
-    return res.status(200).json({ items: normalized });
+    const normalized = normalizeItems(items);
+    const top3 = normalized
+      .sort((a, b) => a.price_num - b.price_num)
+      .slice(0, 3);
+
+    return res.status(200).json({ items: top3 });
 
   } catch (err) {
     console.error("[buscar] Erro inesperado:", err);
