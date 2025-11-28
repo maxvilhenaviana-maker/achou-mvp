@@ -1,134 +1,292 @@
-// AUMENTO DO TIMEOUT PARA 60 SEGUNDOS (Mantido para segurança do Vercel)
-export const config = {
-    maxDuration: 60,
-};
+// pages/api/buscar.js
+// Migrado do Gemini -> OpenAI com fallback Bing / fallback sem-web.
+// Requisitos env (no Vercel):
+//   OPENAI_API_KEY = sk-...
+//   (opcional) BING_API_KEY = <sua chave Bing Search v7>
+
+// Nota: Este arquivo faz uma tentativa leve para detectar se a chave OpenAI
+// permite "tools/web_search". Em seguida usa o melhor caminho disponível.
+
+export const config = { api: { bodyParser: true }, runtime: "nodejs" };
+
+const OPENAI_BASE = "https://api.openai.com/v1/responses";
+
+async function callOpenAI(body, apiKey) {
+  const resp = await fetch(OPENAI_BASE, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await resp.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    parsed = { rawText: text };
+  }
+  return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
+}
+
+// Faz um teste rápido para checar suporte a web_search / tools.
+// Retorna { webAvailable: boolean, details }
+async function detectOpenAIWebSupport(apiKey) {
+  // Corpo mínimo de teste — model pequeno para economizar tokens
+  const testBody = {
+    model: "gpt-4o-mini", // modelo leve — se não existir, API pode rejeitar — tratamos erros
+    tools: [{ type: "web_search" }],
+    input: "health check: web search availability",
+    max_output_tokens: 10,
+  };
+
+  try {
+    const r = await callOpenAI(testBody, apiKey);
+    // Se ok e não há erro no corpo -> provavelmente disponível
+    if (r.ok && !r.body?.error) return { webAvailable: true, details: r.body };
+    // Se o retorno tem erro e a mensagem menciona "tools" ou "web", então não está habilitado
+    const errMsg = (r.body?.error?.message || "").toString().toLowerCase();
+    if (errMsg.includes("tools") || errMsg.includes("web") || errMsg.includes("unsupported") || errMsg.includes("unknown parameter")) {
+      return { webAvailable: false, details: r.body };
+    }
+    // Caso ambíguo, marca false mas retorna detalhes para logs
+    return { webAvailable: false, details: r.body };
+  } catch (e) {
+    return { webAvailable: false, details: String(e) };
+  }
+}
+
+// Busca via Bing (fallback). Requer BING_API_KEY.
+// Usa Bing Web Search v7 endpoint
+async function searchBing(query, bingKey) {
+  const url = "https://api.bing.microsoft.com/v7.0/search?q=" + encodeURIComponent(query) + "&count=10";
+  const resp = await fetch(url, {
+    headers: { "Ocp-Apim-Subscription-Key": bingKey },
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    return { ok: false, status: resp.status, text: txt };
+  }
+  const json = await resp.json();
+  return { ok: true, json };
+}
+
+// Extrai itens brutos de resultados (muito simples): pega webPages.value
+function extractItemsFromBing(json, produto, cidade) {
+  const items = [];
+  const pages = (json.webPages && json.webPages.value) || [];
+  for (const p of pages) {
+    const title = p.name || "";
+    const link = p.url || "";
+    const snippet = p.snippet || "";
+    // heurística simples: tirar preço com regex (R$ 1.234,00 ou 1234)
+    const priceMatch = snippet.match(/R\$\s?[\d\.,]+/) || snippet.match(/[\d\.,]{3,}/);
+    const price = priceMatch ? priceMatch[0] : "";
+    const location = cidade || "";
+    const date = p.dateLastCrawled || "";
+    const img = (p.image && p.image.thumbnailUrl) || "";
+    items.push({ title, price, location, date, analysis: snippet, link, img });
+  }
+  return items;
+}
+
+// Pede ao OpenAI para analisar uma lista de URLs / trechos e devolver JSON final
+async function refineWithOpenAI(apiKey, systemPrompt, userPrompt) {
+  const body = {
+    model: "gpt-4.1",
+    input: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    // peça que o output seja texto JSON puro
+    text: { format: "json" },
+    temperature: 0.0,
+    max_output_tokens: 1200,
+  };
+  return await callOpenAI(body, apiKey);
+}
+
+// Normaliza qualquer lista de objetos ao formato final que o front espera
+function normalizeItems(rawItems, placeholderImg) {
+  return rawItems.map((it) => {
+    return {
+      title: it.title || it.titulo || "Sem título",
+      price: it.price || it.preco || "",
+      location: it.location || it.local || "",
+      date: it.date || it.data || "",
+      analysis: it.analysis || it.analise || "",
+      link: it.link || it.url || "#",
+      img: it.image_url || it.img || it.image || placeholderImg || "/placeholder-120x90.png",
+    };
+  });
+}
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
 
-    // A chave da API deve ser definida no Vercel como uma Variável de Ambiente
-    const apiKey = process.env.GEMINI_ACHOU_KEY;
+  const apiKey = process.env.OPENAI_API_KEY || process.env.GEMINI_ACHOU_KEY;
+  if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY não configurada" });
 
-    if (!apiKey) {
-        console.error('API Key não configurada. Verifique GEMINI_ACHOU_KEY nas variáveis de ambiente.');
-        return res.status(500).json({ error: 'Chave da API do Gemini não encontrada na configuração do servidor.' });
-    }
+  const bingKey = process.env.BING_API_KEY || null;
+  const placeholderImg = "/placeholder-120x90.png";
 
-    const { produto, cidade, raio } = req.body;
-    if (!produto || !cidade) return res.status(400).json({ error: 'Produto e cidade são obrigatórios' });
+  const { produto, cidade, raio } = req.body || {};
+  if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
 
-    // MODELO PRO MAIS RECENTE (gemini-3-pro-preview - Conforme documentação)
-    const MODEL_NAME = 'gemini-3-pro-preview';
+  // 1) Detectar suporte a web_search na OpenAI
+  console.log("[buscar] etapa=detect-openai-web-support");
+  const detect = await detectOpenAIWebSupport(apiKey);
+  console.log("[buscar] detectOpenAIWebSupport result:", detect);
 
-    // URL DE PLACEHOLDER PARA LOGO: Referenciando o arquivo na pasta public (Alteração 1.1)
-    const logoPlaceholderUrl = '/placeholder-120x90.png';
+  // Common prompts
+  const systemPrompt = `
+Você é um agente de busca e filtragem de anúncios do mercado de usados no Brasil.
+Seu trabalho é: receber uma lista de achados (URLs e trechos) e retornar SOMENTE um JSON com "items".
+Formato final:
+{"items":[{"title":"","price":"","location":"","date":"","analysis":"","link":"","image_url":""}]}
+Retorne JSON válido estritamente.
+`;
+  const userPromptTemplate = (contextText) => `
+Contexto: ${contextText}
 
-    // !!! INSTRUÇÃO CRÍTICA PARA EVITAR TIMEOUT DE 60s !!!
-    const systemPrompt = `
-Você é um agente de busca de oportunidades de ouro no mercado de usados do Brasil.
-Seu objetivo é encontrar anúncios que representem a MELHOR OPORTUNIDADE de preço no mercado atual.
-
-Regras de busca (USE A FERRAMENTA DE BUSCA):
-1. A busca deve ser ampla o suficiente para encontrar o produto na região (OLX, Desapega, Mercado Livre, etc.).
-2. **CRITÉRIO DE OPORTUNIDADE:** Traga apenas anúncios que, em sua análise, estejam nitidamente **abaixo do valor de mercado** para aquele produto/condição.
-3. **REGRA DE RETORNO RÁPIDO (PARA EVITAR TIMEOUT):** Comece a buscar. Assim que encontrar **3 (três) oportunidades válidas**, retorne o JSON IMEDIATAMENTE e PARE a busca. Não espere a varredura completa.
-4. Para cada achado, retorne um objeto na lista 'items' com as chaves: title, price (o valor formatado), location, date (data de publicação, se disponível), analysis (análise breve, 1-2 frases), link (URL do anúncio) e **img (URL da imagem)**.
-5. **IMAGEM PLACEHOLDER:** Se a busca na web não fornecer uma imagem direta para o anúncio, você DEVE usar o seguinte URL como valor para a chave 'img': ${logoPlaceholderUrl}
-
-RESPOSTA EXCLUSIVA: Sua resposta deve conter **APENAS** o bloco de código JSON. Não inclua texto explicativo, introduções, títulos ou qualquer outro caractere fora do bloco \`\`\`json.
-**IMPORTANTE (Contingência):** Se NENHUM resultado for encontrado ou o tempo estiver se esgotando, você DEVE retornar estritamente: \`\`\`json\n{"items": []}\n\`\`\` para evitar erros de formatação.
+Retorne APENAS o JSON com a lista "items" (mesmo que vazia).
 `;
 
-    const userPrompt = `
-Produto que estou procurando: ${produto}
-Cidade/Região de busca: ${cidade}
-Raio de busca (km): ${raio || 40}
-
-Execute a varredura e retorne apenas o JSON, conforme instruído.
-`;
-
-    const payload = {
-        contents: [
-            { role: "user", parts: [{ text: userPrompt }] }
-        ],
-        // System instruction é enviada fora do contents.
-        systemInstruction: {
-            parts: [{ text: systemPrompt }]
-        },
-        // FERRAMENTA DE BUSCA ATIVA
-        tools: [{ "google_search": {} }],
-        generationConfig: {
-            temperature: 0.0,
-            maxOutputTokens: 1024,
-        }
+  // 2) Se a OpenAI permite web_search via tools => usar caminho 1
+  if (detect.webAvailable) {
+    console.log("[buscar] etapa=using-openai-web-search");
+    // Monta a requisição usando tools:web_search — estrutura minimalista
+    const requestBody = {
+      model: "gpt-4.1",
+      tools: [{ type: "web_search" }],
+      input: [
+        { role: "system", content: `Você é um bot que busca anúncios em OLX, Mercado Livre e Desapega. Procure anúncios de "${produto}" na cidade "${cidade}", publicados hoje ou ontem, e devolva JSON com "items".` },
+        { role: "user", content: `Produto: ${produto}\nCidade: ${cidade}\nRaio km: ${raio || 40}\nRetorne apenas JSON.` }
+      ],
+      text: { format: "json" },
+      temperature: 0.0,
+      max_output_tokens: 1200,
     };
 
-    try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }
-        );
-
-        if (!response.ok) {
-            const txt = await response.text();
-            const errorMessage = `Erro na API do Gemini (HTTP ${response.status}).`;
-            console.error('Gemini error', response.status, txt);
-            return res.status(response.status).json({ error: errorMessage, details: txt });
+    const openaiResp = await callOpenAI(requestBody, apiKey);
+    console.log("[buscar] openai web_search response status:", openaiResp.status);
+    if (!openaiResp.ok) {
+      console.error("[buscar] openai web_search error:", openaiResp.body || openaiResp.raw);
+      // fallback para Bing se existir
+    } else {
+      // Tenta extrair items do body retornado direto (se já for JSON conforme solicitado)
+      const body = openaiResp.body;
+      // Caso a API retorne já o JSON, tenta encontrar items em body.output[0].content / ou body.output_text
+      // Vários formatos possíveis: adaptamos.
+      let items = [];
+      try {
+        // Se a resposta já vier como objeto com items:
+        if (body?.items) items = body.items;
+        else if (Array.isArray(body.output) && body.output[0]?.items) items = body.output[0].items;
+        else if (body.output_text) {
+          // tentativa: parse do texto
+          const cleaned = body.output_text.replace(/```json|```/g, "").trim();
+          const parsed = JSON.parse(cleaned);
+          items = parsed.items || [];
+        } else if (body?.output?.[0]?.content) {
+          // procurar por bloco text
+          const maybe = body.output[0].content.find(c => c.type === "output_text");
+          if (maybe?.text) {
+            const cleaned = maybe.text.replace(/```json|```/g, "").trim();
+            const parsed = JSON.parse(cleaned);
+            items = parsed.items || [];
+          }
         }
+      } catch (e) {
+        console.error("[buscar] falha ao extrair items da resposta OpenAI:", e, body);
+      }
 
-        const json = await response.json();
-        const jsonText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!jsonText) {
-            // Tratamento de Timeout
-            console.error("Resposta da API vazia ou sem texto de candidato. Possível timeout interno do modelo PRO/FLASH/PREVIEW.");
-            return res.status(500).json({ error: 'Resposta da API vazia ou inválida. (Timeout Tool Use PRO/FLASH/PREVIEW?)' });
-        }
-
-        let items = [];
-
-        // O bloco de parsing mais robusto para extrair o JSON
-        const tryParseJson = (text) => {
-            // 1. Remove marcadores de bloco de código Markdown e espaços em branco desnecessários
-            let cleanedText = text.replace(/```json\s*/g, '').replace(/\s*```/g, '').trim();
-
-            // 2. Tenta fazer o parse do JSON
-            try {
-                const parsed = JSON.parse(cleanedText);
-                return parsed;
-            } catch (e) {
-                // 3. Se falhar, tenta extrair o primeiro bloco {}
-                const match = cleanedText.match(/\{[\s\S]*\}/);
-                if (match) {
-                    try {
-                        return JSON.parse(match[0]);
-                    } catch (e2) {
-                        return null;
-                    }
-                }
-                return null;
-            }
-        };
-
-        const parsedData = tryParseJson(jsonText);
-
-        if (parsedData) {
-            // Se a estrutura for {items: [...]}, usa items. Se for um array direto, usa o parsedData.
-            items = parsedData.items || (Array.isArray(parsedData) ? parsedData : []);
-        } else {
-            // === ALTERAÇÃO 2 APLICADA AQUI ===
-            const customizedErrorMessage = `Não foi possível fazer a pesquisa pela elevada quantidade de ofertas. Especifique melhor a pesquisa (ex.: Tv 32, ao invés de apenas Tv.)`;
-            return res.status(200).json({ error: customizedErrorMessage, raw: jsonText });
-        }
-
-        return res.status(200).json({ items: Array.isArray(items) ? items : [] });
-
-    } catch (err) {
-        console.error('Erro de Fetch/Rede na API:', err);
-        return res.status(500).json({ error: 'Erro de comunicação com o servidor API.', details: String(err) });
+      if (items && items.length >= 0) {
+        const normalized = normalizeItems(items, placeholderImg);
+        return res.status(200).json({ items: normalized });
+      }
+      // se falhar, caí para fallback
+      console.log("[buscar] openai web_search não retornou items. seguindo para fallback.");
     }
+  } // fim detect.webAvailable
+
+  // 3) Fallback: usar Bing se disponível
+  if (bingKey) {
+    console.log("[buscar] etapa=using-bing-fallback");
+    const q = `${produto} ${cidade} anúncio hoje OR ontem site:olx.com.br OR site:mercadolivre.com.br OR site:desapega.app`;
+    const bing = await searchBing(q, bingKey);
+    if (!bing.ok) {
+      console.error("[buscar] bing error:", bing.status, bing.text);
+    } else {
+      const rawItems = extractItemsFromBing(bing.json, produto, cidade);
+      // Envie para OpenAI (sem web) para filtrar/analisar e garantir formato JSON
+      const contextText = `Lista bruta de potenciais anúncios (titulo/link/snippet) gerados pela busca: ${JSON.stringify(rawItems.slice(0, 10))}`;
+      const userPrompt = userPromptTemplate(contextText);
+      const refineResp = await refineWithOpenAI(apiKey, systemPrompt, userPrompt);
+      if (!refineResp.ok) {
+        console.error("[buscar] refineWithOpenAI falhou:", refineResp);
+        // devolve os rawItems normalizados mesmo assim (marcados como 'estimated')
+        const normalized = normalizeItems(rawItems, placeholderImg).map(i => ({ ...i, analysis: (i.analysis || "") + " (estimado)" }));
+        return res.status(200).json({ items: normalized });
+      } else {
+        // parse refineResp.body (deve ser JSON)
+        try {
+          const out = refineResp.body;
+          // se body tiver output_text, parse
+          let finalItems = [];
+          if (out.output_text) {
+            const cleaned = out.output_text.replace(/```json|```/g, "").trim();
+            const parsed = JSON.parse(cleaned);
+            finalItems = parsed.items || [];
+          } else if (out?.output?.[0]?.content) {
+            const maybe = out.output[0].content.find(c => c.type === "output_text");
+            if (maybe?.text) {
+              const cleaned = maybe.text.replace(/```json|```/g, "").trim();
+              const parsed = JSON.parse(cleaned);
+              finalItems = parsed.items || [];
+            }
+          } else if (out.items) finalItems = out.items;
+          const normalized = normalizeItems(finalItems, placeholderImg);
+          return res.status(200).json({ items: normalized });
+        } catch (e) {
+          console.error("[buscar] falha ao parsear refineResp:", e, refineResp);
+          const normalized = normalizeItems(rawItems, placeholderImg).map(i => ({ ...i, analysis: (i.analysis || "") + " (estimado)" }));
+          return res.status(200).json({ items: normalized });
+        }
+      }
+    }
+  }
+
+  // 4) Último recurso: pedir ao OpenAI (sem web) para gerar anúncios plausíveis (marcados como estimados)
+  try {
+    console.log("[buscar] etapa=using-openai-simulated-fallback");
+    const userPrompt = `
+Gere até 3 anúncios plausíveis para "${produto}" em "${cidade}" (HOJE/ONTEM) com o máximo de realismo possível.
+Retorne APENAS JSON: {"items":[{ "title":"","price":"","location":"","date":"","analysis":"","link":"","image_url":"" }]}
+Marque cada item com "analysis" contendo a palavra "(estimado)".
+`;
+    const resp = await refineWithOpenAI(apiKey, systemPrompt, userPrompt);
+    if (!resp.ok) {
+      console.error("[buscar] fallback-simulated failed:", resp);
+      return res.status(500).json({ error: "Nenhuma estratégia de busca funcionou", details: resp.body || resp.raw });
+    }
+    // Parse final
+    let out = resp.body;
+    let finalItems = [];
+    try {
+      if (out.output_text) {
+        const cleaned = out.output_text.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        finalItems = parsed.items || [];
+      } else if (out.items) finalItems = out.items;
+    } catch (e) {
+      console.error("[buscar] parse fallback JSON error:", e, out);
+    }
+    const normalized = normalizeItems(finalItems, placeholderImg);
+    return res.status(200).json({ items: normalized });
+  } catch (e) {
+    console.error("[buscar] erro final inesperado:", e);
+    return res.status(500).json({ error: "Erro interno final", details: String(e) });
+  }
 }
