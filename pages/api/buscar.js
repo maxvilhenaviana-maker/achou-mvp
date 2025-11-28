@@ -1,4 +1,3 @@
-// pages/api/buscar.js
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_BASE = "https://api.openai.com/v1/responses";
@@ -23,35 +22,25 @@ async function callOpenAI(body, apiKey) {
 }
 
 function normalizeItems(rawItems) {
-  const itemsWithPrice = rawItems
-    .map((it) => {
-      const priceStr = it.price !== undefined && it.price !== null ? String(it.price) : '';
-      const priceNum = parseFloat(priceStr.replace(/\D/g, "")) || null;
+  return rawItems.map(it => {
+    // Garantir que price seja número
+    let price = parseFloat(String(it.price).replace(/[^\d.,]/g, '').replace(',', '.'));
+    if (isNaN(price)) price = null;
 
-      return {
-        title: it.title || "Sem título",
-        price: priceStr,
-        price_num: priceNum,
-        location: it.location || "",
-        date: it.date || "",
-        analysis: it.analysis || "",
-        link: it.link || "#",
-        img: "/placeholder-120x90.png",
-      };
-    })
-    .filter((it) => it.price_num !== null); // descarta itens sem preço
-
-  // Cálculos de min, médio e max
-  const prices = itemsWithPrice.map(it => it.price_num);
-  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-  const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
-  const avgPrice = prices.length > 0 ? (prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
-
-  // Adiciona estatísticas no analysis
-  return itemsWithPrice.map(it => ({
-    ...it,
-    analysis: `${it.analysis || ''} (Menor: R$${minPrice}, Médio: R$${avgPrice.toFixed(2)}, Maior: R$${maxPrice})`
-  }));
+    return {
+      title: it.title || "Sem título",
+      price,
+      priceDisplay: it.price || "—",
+      location: it.location || "—",
+      date: it.date || "—",
+      analysis: it.analysis || "",
+      link: it.link || "#",
+      img: "/placeholder-120x90.png",
+      defect: it.defect || false,   // caso venha informação de defeito
+      updatedAt: it.updatedAt || null,
+      centrality: it.centrality || 0
+    };
+  });
 }
 
 export default async function handler(req, res) {
@@ -69,10 +58,18 @@ export default async function handler(req, res) {
       tools: [{ type: "web_search" }],
       input: [
         { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
-        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. Selecione apenas os 3 melhores anúncios considerando: preço mais baixo, sem defeito, mais recente e localização central. Retorne JSON apenas com um array "items" (title, price, location, date, analysis, link).` }
+        { role: "user", content: `
+Busque anúncios de "${produto}" em "${cidade}" publicados recentemente.
+Retorne JSON apenas com array "items" contendo: title, price, location, date, analysis, link, defect (boolean), updatedAt (ISO), centrality (numérica, 0-100).
+Analise todas as ofertas encontradas, mas retorne apenas as **3 melhores ofertas** seguindo:
+1) Preferência por produtos sem defeito.
+2) Se empate, escolha os mais recentes.
+3) Se empate, escolha os mais centrais.
+Além disso, registre no primeiro item o menor preço encontrado, o preço médio e o maior preço considerando **todos os anúncios válidos encontrados**, mesmo que não estejam nos 3 selecionados.
+      ` }
       ],
       temperature: 0,
-      max_output_tokens: 1500
+      max_output_tokens: 2000
     };
 
     const openaiResp = await callOpenAI(requestBody, apiKey);
@@ -80,6 +77,7 @@ export default async function handler(req, res) {
 
     let items = [];
 
+    // Extrair JSON do output do OpenAI
     if (openaiResp.body?.output?.length > 0) {
       for (const out of openaiResp.body.output) {
         if (out.type === "message" && out.content?.length > 0) {
@@ -91,7 +89,7 @@ export default async function handler(req, res) {
                   const parsed = JSON.parse(match[0]);
                   if (parsed.items) items = items.concat(parsed.items);
                 } catch (e) {
-                  console.error("[buscar] falha ao parsear JSON regex:", e);
+                  console.error("[buscar] falha ao parsear JSON:", e);
                 }
               }
             }
@@ -101,7 +99,33 @@ export default async function handler(req, res) {
     }
 
     const normalized = normalizeItems(items);
-    return res.status(200).json({ items: normalized });
+
+    // Somente anúncios com preço válido
+    const validItems = normalized.filter(it => it.price !== null);
+
+    // Cálculo menor, médio e maior
+    const allPrices = validItems.map(it => it.price);
+    const menor = Math.min(...allPrices);
+    const maior = Math.max(...allPrices);
+    const medio = (allPrices.reduce((a, b) => a + b, 0) / allPrices.length) || 0;
+
+    // Ordenar por critérios de preferência
+    const sorted = normalized.sort((a, b) => {
+      if (a.defect !== b.defect) return a.defect ? 1 : -1; // sem defeito primeiro
+      if (a.price !== b.price) return a.price - b.price; // menor preço primeiro
+      if (a.updatedAt && b.updatedAt) return new Date(b.updatedAt) - new Date(a.updatedAt); // mais recente
+      return b.centrality - a.centrality; // mais central
+    });
+
+    // Selecionar 3 melhores
+    const top3 = sorted.slice(0, 3);
+
+    // Adicionar informação de menor, médio e maior apenas no primeiro item
+    if (top3.length > 0) {
+      top3[0].priceStats = `Menor: R$${menor}, Médio: R$${medio.toFixed(2)}, Maior: R$${maior}`;
+    }
+
+    return res.status(200).json({ items: top3 });
 
   } catch (err) {
     console.error("[buscar] Erro inesperado:", err);
