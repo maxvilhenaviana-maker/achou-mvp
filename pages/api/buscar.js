@@ -1,4 +1,3 @@
-// pages/api/buscar.js
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_BASE = "https://api.openai.com/v1/responses";
@@ -21,16 +20,19 @@ async function callOpenAI(body, apiKey) {
 }
 
 function normalizeItems(rawItems) {
-  return rawItems.map((it) => ({
-    title: it.title || "Sem título",
-    price: it.price || "",
-    price_num: parseFloat(it.price.replace(/\D/g, "")) || 0,
-    location: it.location || "",
-    date: it.date || "",
-    analysis: it.analysis || "",
-    link: it.link || "#",
-    img: "/placeholder-120x90.png",
-  }));
+  return rawItems.map((it) => {
+    const priceNum = parseFloat(it.price.replace(/\D/g, "")) || 0;
+    return {
+      title: it.title || "Sem título",
+      price: it.price || "",
+      price_num: priceNum,
+      location: it.location || "",
+      date: it.date || "",
+      analysis: it.analysis || "",
+      link: it.link || "#",
+      img: "/placeholder-120x90.png",
+    };
+  });
 }
 
 export default async function handler(req, res) {
@@ -47,16 +49,20 @@ export default async function handler(req, res) {
       model: "gpt-4.1",
       tools: [{ type: "web_search" }],
       input: [
-        { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
+        { role: "system", content: "Você é um assistente especializado em buscar anúncios recentes na web e analisar as melhores oportunidades." },
         {
           role: "user",
-          content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente.
-          Retorne JSON apenas com um array "items" contendo: title, price, location, date, analysis, link.
-          Analise os resultados e retorne apenas os 3 melhores anúncios segundo preço e relevância.`
+          content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. 
+          Analise todos os resultados encontrados e retorne **somente os 3 melhores anúncios** considerando estas prioridades: 
+          1) Evitar produtos com defeito; 
+          2) Em caso de empate de preço, escolher os publicados ou alterados mais recentemente; 
+          3) Em caso de empate, escolher os localizados mais centrais.
+          Para cada resultado, inclua: title, price, location, date, link individual, e um campo analysis que descreva o valor mais baixo, médio e mais alto das ofertas analisadas.
+          Retorne apenas um JSON válido com array "items".`
         }
       ],
       temperature: 0,
-      max_output_tokens: 1500
+      max_output_tokens: 2000
     };
 
     const openaiResp = await callOpenAI(requestBody, apiKey);
@@ -85,11 +91,8 @@ export default async function handler(req, res) {
     }
 
     const normalized = normalizeItems(items);
-    const top3 = normalized
-      .sort((a, b) => a.price_num - b.price_num)
-      .slice(0, 3);
 
-    return res.status(200).json({ items: top3 });
+    return res.status(200).json({ items: normalized });
 
   } catch (err) {
     console.error("[buscar] Erro inesperado:", err);
