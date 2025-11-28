@@ -13,7 +13,6 @@ async function callOpenAI(body, apiKey) {
     },
     body: JSON.stringify(body),
   });
-
   const text = await resp.text();
   let parsed;
   try {
@@ -21,7 +20,6 @@ async function callOpenAI(body, apiKey) {
   } catch {
     parsed = { rawText: text };
   }
-
   return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
@@ -34,6 +32,7 @@ function normalizeItems(rawItems) {
     date: it.date || "",
     analysis: it.analysis || "",
     link: it.link || "#",
+    img: "/placeholder-120x90.png", // placeholder fixo
   }));
 }
 
@@ -52,7 +51,7 @@ export default async function handler(req, res) {
       tools: [{ type: "web_search" }],
       input: [
         { role: "system", content: `Você é um assistente que busca anúncios recentes na web.` },
-        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e retorne apenas JSON com um array "items", onde cada item tem title, price, location, date, analysis e link.` }
+        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e retorne apenas JSON com um array "items", onde cada item tem title, price, location, date, analysis, link.` }
       ],
       temperature: 0,
       max_output_tokens: 1500
@@ -65,21 +64,39 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Erro ao buscar na OpenAI", details: JSON.stringify(openaiResp.body).substring(0, 300) });
     }
 
-    // Extrai os items do JSON retornado
     let items = [];
+
+    // Itera sobre todos outputs retornados
     if (openaiResp.body?.output?.length > 0) {
       for (const out of openaiResp.body.output) {
+
+        // Captura JSON em tool_result (legacy)
         if (out.type === "tool_result" && out.tool?.type === "web_search" && out.content?.[0]?.text) {
           try {
             const parsed = JSON.parse(out.content[0].text);
-            if (parsed.items) items = parsed.items;
+            if (parsed.items) items = items.concat(parsed.items);
           } catch (e) {
-            console.error("[buscar] falha ao parsear JSON da OpenAI:", e);
+            console.error("[buscar] falha ao parsear JSON tool_result:", e);
+          }
+        }
+
+        // Captura JSON em mensagens tipo assistant (output_text)
+        if (out.type === "message" && out.content?.length > 0) {
+          for (const c of out.content) {
+            if (c.type === "output_text" && c.text) {
+              try {
+                const parsed = JSON.parse(c.text);
+                if (parsed.items) items = items.concat(parsed.items);
+              } catch (e) {
+                console.error("[buscar] falha ao parsear JSON message.output_text:", e);
+              }
+            }
           }
         }
       }
     }
 
+    // Normaliza e retorna
     const normalized = normalizeItems(items);
     return res.status(200).json({ items: normalized });
 
