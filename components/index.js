@@ -28,37 +28,35 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [searchExecuted, setSearchExecuted] = useState(false);
 
-  async function buscar(e) {
+  async function buscar(e){
     e?.preventDefault();
-    if (!produto || !cidade) {
+    if(!produto || !cidade) {
       setError('Preencha produto e cidade');
       return;
     }
-
     setError(null);
     setLoading(true);
     setItems([]);
     setSearchExecuted(false);
 
-    try {
+    try{
       const payload = { produto, cidade };
       const resp = await fetch('/api/buscar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payload)
       });
       const json = await resp.json();
 
-      if (json.error) {
+      if(json.error) {
         setError(json.error + (json.details ? ` (${json.details.substring(0, 80)}...)` : ''));
-      } else if (Array.isArray(json.items)) {
-        // Garantir que cada item seja um objeto válido
-        setItems(json.items.map(it => it || {}));
+      } else if(json.items) {
+        setItems(json.items);
       }
 
-    } catch (err) {
-      console.error(err);
+    } catch(err){
       setError('Erro ao buscar. Verifique sua conexão e o console.');
+      console.error(err);
     } finally {
       setLoading(false);
       setSearchExecuted(true);
@@ -71,8 +69,8 @@ export default function Home() {
         <div className="logo">
           <img src="/logo-512.png" alt="achou.net.br logo"/>
           <div>
-            <div style={{ fontWeight: 700 }}>achou.net.br</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Radar de achados — anúncios do dia</div>
+            <div style={{fontWeight:700}}>achou.net.br</div>
+            <div style={{fontSize:12,color:'var(--muted)'}}>Radar de achados — anúncios do dia</div>
           </div>
         </div>
       </header>
@@ -82,19 +80,19 @@ export default function Home() {
           <h1>Encontre oportunidades publicadas recentemente</h1>
           <p className="small">Buscamos OLX, Desapega e Mercado Livre em tempo real — sem cadastro.</p>
 
-          <form className="searchRow" onSubmit={buscar} style={{ marginTop: 12 }}>
-            <input className="input" value={produto} onChange={e => setProduto(e.target.value)} placeholder="O que você procura? (ex: iPhone 8, Monitor 24)" />
-            <input className="input" value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Região ou cidade (ex: Belo Horizonte)" />
-            <button type="submit" className="btn" disabled={loading}>{loading ? 'Buscando…' : 'Buscar agora'}</button>
+          <form className="searchRow" onSubmit={buscar} style={{marginTop:12}}>
+            <input className="input" value={produto} onChange={e=>setProduto(e.target.value)} placeholder="O que você procura? (ex: iPhone 8, Monitor 24)"/>
+            <input className="input" value={cidade} onChange={e=>setCidade(e.target.value)} placeholder="Região ou cidade (ex: Belo Horizonte)"/>
+            <button type="submit" className="btn" disabled={loading}>{loading? 'Buscando…' : 'Buscar agora'}</button>
           </form>
         </div>
 
         <div className="resultsHeader">
-          <div style={{ fontWeight: 700 }}>{(produto && searchExecuted) ? `Resultados para: ${produto} — ${cidade}` : 'Nenhuma busca ainda'}</div>
+          <div style={{fontWeight:700}}>{ (produto && searchExecuted) ? `Resultados para: ${produto} — ${cidade}` : 'Nenhuma busca ainda'}</div>
           <div className="small">Resultados mostram anúncios publicados recentemente com preço abaixo do mercado</div>
         </div>
 
-        {error && <div style={{ color: 'red', marginBottom: 12, padding: '12px', background: '#fee', borderRadius: '8px' }}>{error}</div>}
+        {error && <div style={{color:'red',marginBottom:12, padding: '12px', background: '#fee', borderRadius: '8px'}}>{error}</div>}
 
         {loading && (
           <div style={{
@@ -108,23 +106,23 @@ export default function Home() {
             flexDirection: 'column',
             alignItems: 'center'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{display:'flex', alignItems:'center', marginBottom: '10px'}}>
               <Spinner />
-              <h3 style={{ margin: 0, color: 'var(--dark)' }}>Radar em Processamento...</h3>
+              <h3 style={{margin: 0, color: 'var(--dark)'}}>Radar em Processamento...</h3>
             </div>
-            <p style={{ color: 'var(--muted)', maxWidth: '500px' }}>
-              Estamos vasculhando a web para encontrar anúncios publicados recentemente e analisando o preço de mercado para garantir que seja uma oportunidade. Este processo pode levar alguns segundos.
+            <p style={{color: 'var(--muted)', maxWidth: '500px'}}>
+              Estamos vasculhando a web para encontrar anúncios publicados recentemente e **analisando o preço de mercado** para garantir que seja uma oportunidade. Este processo é complexo e pode levar alguns segundos.
             </p>
           </div>
         )}
 
         <div>
-          {items?.length > 0 && items.map((it, idx) => it ? <ResultCard key={idx} item={it} /> : null)}
+          {items.length > 0 && items.map((it, idx) => <ResultCard key={idx} item={it} />)}
 
-          {items?.length === 0 && searchExecuted && !loading && produto && cidade && (
-            <div style={{ textAlign: 'center', margin: '40px 0', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', background: '#fff' }}>
-              <h3 style={{ marginTop: 0, color: 'var(--dark)' }}>Nenhum Achado Recente</h3>
-              <p style={{ color: 'var(--muted)' }}>O radar não encontrou nenhum anúncio para <strong>"{produto}"</strong> em <strong>{cidade}</strong> publicado recentemente que estivesse abaixo do valor de mercado. Tente refinar ou ampliar a busca!</p>
+          {items.length === 0 && searchExecuted && !loading && produto && cidade && (
+            <div style={{textAlign: 'center', margin: '40px 0', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', background: '#fff'}}>
+              <h3 style={{marginTop: 0, color: 'var(--dark)'}}>Nenhum Achado Recente</h3>
+              <p style={{color: 'var(--muted)'}}>O radar não encontrou nenhum anúncio para **"{produto}"** em **{cidade}** publicado **recentemente** que estivesse **abaixo do valor de mercado**. Tente refinar ou ampliar a busca!</p>
             </div>
           )}
         </div>
@@ -136,3 +134,4 @@ export default function Home() {
     </div>
   );
 }
+
