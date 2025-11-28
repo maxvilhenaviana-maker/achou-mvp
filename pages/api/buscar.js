@@ -1,62 +1,153 @@
-import OpenAI from "openai";
-
 export default async function handler(req, res) {
+
+  if (req.method !== 'POST') return res.status(405).end();
+
+
+
+  const { produto, cidade, raio } = req.body;
+
+  if (!produto || !cidade) return res.status(400).json({ error: 'produto e cidade são obrigatórios' });
+
+
+
+  const systemPrompt = `
+
+Você é um agente de busca automática de oportunidades no Brasil.
+
+Regras:
+
+\- Acesse OLX, Desapega, Mercado Livre ou equivalentes.
+
+\- Traga apenas anúncios publicados HOJE ou ONTEM na região informada.
+
+\- Selecione apenas anúncios com preço abaixo do valor de mercado.
+
+\- Para cada anúncio, retorne: title, price, location, date, analysis breve (1-2 frases), link, image\_url.
+
+\- Retorne um JSON com uma lista chamada "items".
+
+\- Não invente anúncios.
+
+`;
+
+
+
+  const userPrompt = `
+
+Produto: ${produto}
+
+Cidade/Região: ${cidade}
+
+Raio (km): ${raio || 40}
+
+
+
+Execute a varredura agora e retorne apenas JSON válido conforme instruções do sistema.
+
+`;
+
+
+
+  const payload = {
+
+    "messages": \[
+
+      { "role": "system", "content": systemPrompt },
+
+      { "role": "user", "content": userPrompt }
+
+    ],
+
+    "temperature": 0.0,
+
+    "maxOutputTokens": 800
+
+  };
+
+
+
   try {
-    const { query } = req.query;
 
-    if (!query) {
-      return res.status(400).json({ error: "Parâmetro 'query' é obrigatório." });
+    const response = await fetch(
+
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI\_KEY}`,
+
+      {
+
+        method: 'POST',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify(payload)
+
+      }
+
+    );
+
+
+
+    if (!response.ok) {
+
+      const txt = await response.text();
+
+      console.error('Gemini error', response.status, txt);
+
+      return res.status(500).json({ error: 'Erro na API do Gemini', details: txt });
+
     }
 
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
 
-    // 🔥 IMPORTANTE: uso correto DO NOVO ENDPOINT /responses
-    const response = await client.responses.create({
-      model: "gpt-4.1",   
 
-      // --- texto em formato JSON (substitui response_format) ---
-      text: { format: "json" },
+    const json = await response.json();
 
-      // --- sua instrução ---
-      input: `Pesquise na web informações bem recentes sobre: "${query}".  
-              Retorne apenas um JSON LIMPO no seguinte formato:
-              {
-                "titulo": "",
-                "resumo": "",
-                "links": []
-              }`,
+    const texto = json?.candidates?.\[0]?.content?.parts?.\[0]?.text || JSON.stringify(json);
 
-      // --- habilita busca na web ---
-      web: {
-        search: {
-          enable: true,
-        },
-      },
-    });
 
-    // A resposta vem em `output[0].content[0].text`
-    const text = response.output_text;
 
-    let jsonData;
+    let items = \[];
+
     try {
-      jsonData = JSON.parse(text);
-    } catch (err) {
-      return res.status(500).json({
-        error: "Falha ao converter resposta em JSON.",
-        textoOriginal: text,
-      });
+
+      const parsed = JSON.parse(texto);
+
+      items = parsed.items || parsed;
+
+    } catch (e) {
+
+      const match = texto.match(/\\{\[\\s\\S]\*\\}/);
+
+      if (match) {
+
+        try {
+
+          const p2 = JSON.parse(match\[0]);
+
+          items = p2.items || p2;
+
+        } catch (e2) {
+
+          return res.status(200).json({ raw: texto });
+
+        }
+
+      } else {
+
+        return res.status(200).json({ raw: texto });
+
+      }
+
     }
 
-    return res.status(200).json(jsonData);
 
-  } catch (error) {
-    console.error("Erro OpenAI:", error);
 
-    return res.status(500).json({
-      error: "Erro OpenAI",
-      details: error,
-    });
+    return res.status(200).json({ items });
+
+  } catch (err) {
+
+    console.error('Erro API', err);
+
+    return res.status(500).json({ error: 'Erro interno', details: String(err) });
+
   }
+
 }
