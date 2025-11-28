@@ -219,7 +219,7 @@ export default async function handler(req, res) {
   const systemPromptForRefine = `
 Você é um agente que recebe uma lista de achados (títulos, links, trechos) e deve:
 - Filtrar apenas anúncios plausíveis e com preço baixo quando possível.
-- Retornar SOMENTE um objeto JSON válido conforme o schema: {"items":[{title,price,location,date,analysis,link,image_url}]}
+- Retornar SOMENTE um objeto JSON válido conforme o schema: {"items":[{title,price,location,date,analysis,link}]}
 - Não inclua explicações, apenas o JSON.
 `;
 
@@ -299,7 +299,7 @@ Você é um agente que recebe uma lista de achados (títulos, links, trechos) e 
   if (bingKey) {
     try {
       console.log("[buscar] etapa=bing-fallback (query)");
-      const q = `${produto} ${cidade} anúncio hoje OR ontem site:olx.com.br OR site:mercadolivre.com.br OR site:desapega.app`;
+      const q = `${produto} ${cidade} anúncio recente site:olx.com.br OR site:mercadolivre.com.br OR site:desapega.app`;
       const bingResp = await searchBing(q, bingKey);
       if (!bingResp.ok) {
         console.error("[buscar] bing error:", bingResp.status, bingResp.raw);
@@ -352,7 +352,7 @@ Você é um agente que recebe uma lista de achados (títulos, links, trechos) e 
   // 4) Fallback final: pedir ao OpenAI (sem web) para gerar até 3 anúncios plausíveis (marcados como estimados)
   try {
     console.log("[buscar] etapa=fallback-simulated (openai)");
-    const userPrompt = `Gere até 3 anúncios plausíveis para "${produto}" em "${cidade}" (HOJE/ONTEM). Retorne APENAS JSON no formato: {"items":[{ "title":"","price":"","location":"","date":"","analysis":"","link":"","image_url":"" }]}. Marque "analysis" com a palavra "(estimado)".`;
+    const userPrompt = `Gere até 3 anúncios plausíveis para "${produto}" em "${cidade}" (HOJE/ONTEM). Retorne APENAS JSON no formato: {"items":[{ "title":"","price":"","location":"","date":"","analysis":"","link":"" }]}. Marque "analysis" com a palavra "(estimado)".`;
     const fallback = await refineWithOpenAI(apiKey, systemPromptForRefine, userPrompt, jsonSchema);
     if (!fallback.ok) {
       console.error("[buscar] fallback-simulated failed:", fallback);
