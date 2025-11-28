@@ -1,4 +1,3 @@
-// pages/api/buscar.js
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_BASE = "https://api.openai.com/v1/responses";
@@ -65,7 +64,6 @@ export default async function handler(req, res) {
         if (out.type === "message" && out.content?.length > 0) {
           for (const c of out.content) {
             if (c.type === "output_text" && c.text) {
-              // Extrai JSON do texto usando regex
               const match = c.text.match(/\{.*"items":.*\}/s);
               if (match) {
                 try {
@@ -81,7 +79,9 @@ export default async function handler(req, res) {
       }
     }
 
-    const normalized = normalizeItems(items);
+    // Pega apenas os itens 3 e 4 (índices 2 e 3) para teste
+    const selectedItems = items.slice(2, 4);
+    const normalized = normalizeItems(selectedItems);
     return res.status(200).json({ items: normalized });
 
   } catch (err) {
