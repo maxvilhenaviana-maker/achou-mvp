@@ -38,34 +38,6 @@ async function detectOpenAIWebSupport(apiKey) {
   }
 }
 
-async function searchBing(query, bingKey) {
-  const url = "https://api.bing.microsoft.com/v7.0/search?q=" + encodeURIComponent(query) + "&count=10";
-  const resp = await fetch(url, { headers: { "Ocp-Apim-Subscription-Key": bingKey } });
-  if (!resp.ok) {
-    const txt = await resp.text(); // CORRIGIDO AQUI
-    return { ok: false, status: resp.status, text: txt };
-  }
-  const json = await resp.json();
-  return { ok: true, json };
-}
-
-function extractItemsFromBing(json, produto, cidade) {
-  const items = [];
-  const pages = (json.webPages && json.webPages.value) || [];
-  for (const p of pages) {
-    items.push({
-      title: p.name || "",
-      price: "",
-      location: cidade || "",
-      date: p.dateLastCrawled || "",
-      analysis: p.snippet || "",
-      link: p.url || "",
-      img: (p.image && p.image.thumbnailUrl) || "",
-    });
-  }
-  return items;
-}
-
 function normalizeItems(rawItems, placeholderImg) {
   return rawItems.map((it) => ({
     title: it.title || "Sem título",
@@ -79,58 +51,80 @@ function normalizeItems(rawItems, placeholderImg) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
+  if (req.method !== "POST")
+    return res.status(405).json({ error: "Método não permitido" });
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY não configurada" });
 
-  const bingKey = process.env.BING_API_KEY || null;
   const placeholderImg = "/placeholder-120x90.png";
 
   const { produto, cidade } = req.body || {};
-  if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
+  if (!produto || !cidade)
+    return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
 
+  // Verifica se OpenAI suporta web_search
   const detect = await detectOpenAIWebSupport(apiKey);
+  console.log("[buscar] detectOpenAIWebSupport:", detect);
 
-  if (detect.webAvailable) {
-    const requestBody = {
-      model: "gpt-4.1",
-      tools: [{ type: "web_search" }],
-      input: [
-        { role: "system", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e devolva JSON com "items".` },
-        { role: "user", content: `Produto: ${produto}\nCidade: ${cidade}\nRetorne apenas JSON.` },
-      ],
-      text: { format: "json" },
-      temperature: 0.0,
-      max_output_tokens: 1200,
-    };
+  if (!detect.webAvailable)
+    return res.status(500).json({
+      error: "Chave OpenAI não possui suporte a web_search",
+      details: detect.details,
+    });
 
-    const openaiResp = await callOpenAI(requestBody, apiKey);
-    if (openaiResp.ok) {
-      try {
-        let items = [];
-        const body = openaiResp.body;
-        if (body?.items) items = body.items;
-        const normalized = normalizeItems(items, placeholderImg);
-        return res.status(200).json({ items: normalized });
-      } catch (e) {
-        console.error("[buscar] falha ao extrair items da resposta OpenAI:", e);
+  // Cria prompt para web_search
+  const requestBody = {
+    model: "gpt-4.1",
+    tools: [{ type: "web_search" }],
+    input: [
+      {
+        role: "system",
+        content: `Você é um agente de busca de anúncios do mercado de usados no Brasil. 
+Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e devolva apenas JSON com "items". 
+Formato: {"items":[{"title":"","price":"","location":"","date":"","analysis":"","link":"","img":""}]}`
+      },
+      {
+        role: "user",
+        content: `Produto: ${produto}\nCidade: ${cidade}\nRetorne APENAS JSON com anúncios reais.`
+      }
+    ],
+    text: { format: "json" },
+    temperature: 0.0,
+    max_output_tokens: 1200,
+  };
+
+  const openaiResp = await callOpenAI(requestBody, apiKey);
+
+  console.log("[buscar] openaiResp status:", openaiResp.status);
+  console.log("[buscar] openaiResp body:", JSON.stringify(openaiResp.body, null, 2));
+
+  if (!openaiResp.ok)
+    return res.status(500).json({ error: "Erro ao consultar OpenAI", details: openaiResp.body });
+
+  try {
+    let items = [];
+    const body = openaiResp.body;
+
+    // Tentativas de parse
+    if (body?.items) items = body.items;
+    else if (body?.output_text) {
+      const cleaned = body.output_text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      items = parsed.items || [];
+    } else if (Array.isArray(body?.output) && body.output[0]?.content) {
+      const maybe = body.output[0].content.find(c => c.type === "output_text");
+      if (maybe?.text) {
+        const cleaned = maybe.text.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        items = parsed.items || [];
       }
     }
-  }
 
-  if (bingKey) {
-    const q = `${produto} ${cidade} anúncio recente site:olx.com.br OR site:mercadolivre.com.br OR site:desapega.app`;
-    const bing = await searchBing(q, bingKey);
-    if (bing.ok) {
-      const rawItems = extractItemsFromBing(bing.json, produto, cidade);
-      const normalized = normalizeItems(rawItems, placeholderImg).map((i) => ({ ...i, analysis: (i.analysis || "") + " (estimado)" }));
-      return res.status(200).json({ items: normalized });
-    }
+    const normalized = normalizeItems(items, placeholderImg);
+    return res.status(200).json({ items: normalized });
+  } catch (e) {
+    console.error("[buscar] erro ao parsear resposta OpenAI:", e, openaiResp.body);
+    return res.status(500).json({ error: "Falha ao processar resultado da OpenAI", details: e.toString() });
   }
-
-  const fallbackItems = [
-    { title: `Anúncio simulado de ${produto}`, price: "R$ 100", location: cidade, date: "recentemente", analysis: "(estimado)", link: "#", img: placeholderImg },
-  ];
-  return res.status(200).json({ items: normalizeItems(fallbackItems, placeholderImg) });
 }
