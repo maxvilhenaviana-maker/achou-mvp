@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import ResultCard from '../components/ResultCard';
 
-// Componente simples de Spinner para indicar processamento
 const Spinner = () => (
   <div style={{
     border: '4px solid #f3f3f3',
@@ -42,28 +41,17 @@ export default function Home() {
 
     try{
       const payload = { produto, cidade };
-
       const resp = await fetch('/api/buscar', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payload)
       });
-
       const json = await resp.json();
 
       if(json.error) {
         setError(json.error + (json.details ? ` (${json.details.substring(0, 80)}...)` : ''));
       } else if(json.items) {
-        const normalized = json.items.map(it => ({
-          title: it.title || it.titulo || 'Sem título',
-          price: it.price || it.preco || '',
-          location: it.location || it.local || '',
-          date: it.date || it.data || '',
-          analysis: it.analysis || it.analise || '',
-          link: it.link || it.url || '#',
-          img: it.image_url || it.img || '/placeholder-120x90.png'
-        }));
-        setItems(normalized);
+        setItems(json.items);
       } else if(json.raw) {
         setItems([{
           title: 'Resultado bruto (falha no formato JSON)',

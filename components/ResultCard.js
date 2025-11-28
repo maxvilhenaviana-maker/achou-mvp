@@ -1,8 +1,6 @@
 export default function ResultCard({ item }) {
-  // item expected keys: title, price, location, date, analysis, link, img
   return (
-    <div className="card" >
-      <img className="thumb" src={item.img || '/placeholder-120x90.png'} alt={item.title} />
+    <div className="card">
       <div style={{flex:1}}>
         <p className="title">{item.title}</p>
         <p className="price">{ item.price ? `R$ ${item.price}` : '—' }</p>
