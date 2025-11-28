@@ -1,76 +1,42 @@
-// pages/api/buscar.js
+// /pages/api/buscar.js
+import OpenAI from "openai";
 
 export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Método não permitido" });
+  }
+
   try {
     const { termo, local } = req.body;
 
-    // Verificação básica
     if (!termo || !local) {
-      return res.status(400).json({ error: "Parâmetros inválidos." });
+      return res.status(400).json({ error: "Dados insuficientes" });
     }
-
-    // ===== OPENAI SETUP =====
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "OPENAI_API_KEY não configurada no Vercel." });
-    }
-
-    // Import dinâmico do SDK novo da OpenAI
-    const OpenAI = (await import("openai")).default;
 
     const openai = new OpenAI({
-      apiKey
+      apiKey: process.env.OPENAI_API_KEY
     });
 
-    // ===== TESTE DE INTERNET REAL =====
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: [
-        {
-          role: "user",
-          content: `
-            Faça uma busca REAL na internet (web browsing habilitado).
-            Pergunta de teste:
-            → Existem microondas à venda em Belo Horizonte agora?
-
-            Responda:
-            - SIM ou NÃO
-            - E traga pelo menos 1 link REAL encontrado.
-          `
-        }
-      ],
-      tools: {
-        web: { enabled: true }
-      },
-      max_output_tokens: 300
+    // Requisição na API nova, com acesso WEB habilitado
+    const resposta = await openai.responses.create({
+      model: "gpt-4.1",
+      input: `
+        Pesquise na internet anúncios REAIS e RECENTES do item "${termo}"
+        na cidade "${local}".
+        Liste pelo menos 3 resultados verdadeiros com:
+        - título
+        - preço
+        - link
+        - data aproximada do anúncio
+      `
     });
 
-    // ===== TRATAMENTO =====
-    let texto = "";
-
-    if (response.output_text) {
-      texto = response.output_text;
-    } else if (response.output && response.output[0]?.content[0]?.text) {
-      texto = response.output[0].content[0].text;
-    } else {
-      texto = JSON.stringify(response, null, 2);
-    }
-
-    // Retorno final
-    return res.status(200).json({
-      ok: true,
-      teste: true,
-      termo,
-      local,
-      resultado: texto
-    });
-
-  } catch (error) {
-    console.error("Erro no buscar.js:", error);
-
-    return res.status(500).json({
-      error: "Erro durante o teste com a OpenAI.",
-      details: error?.response?.data || error.message || error
+    res.status(200).json({ resultado: resposta.output_text });
+  } catch (erro) {
+    console.error("ERRO AO BUSCAR:", erro);
+    res.status(500).json({
+      error: "Erro ao consultar OpenAI",
+      details: erro.response ? erro.response.data : erro.message
     });
   }
 }
