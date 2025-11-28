@@ -22,14 +22,13 @@ async function callOpenAI(body, apiKey) {
   return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
 }
 
-// Teste se a chave permite web_search / tools
 async function detectOpenAIWebSupport(apiKey) {
   try {
     const testBody = {
       model: "gpt-4o-mini",
       tools: [{ type: "web_search" }],
       input: "health check: web search availability",
-      max_output_tokens: 16, // mínimo permitido pela API
+      max_output_tokens: 16, // mínimo
     };
     const r = await callOpenAI(testBody, apiKey);
     if (r.ok && !r.body?.error) return { webAvailable: true, details: r.body };
@@ -39,7 +38,6 @@ async function detectOpenAIWebSupport(apiKey) {
   }
 }
 
-// Normaliza qualquer lista de objetos para o front
 function normalizeItems(rawItems, placeholderImg) {
   return rawItems.map((it) => ({
     title: it.title || "Sem título",
@@ -62,28 +60,25 @@ export default async function handler(req, res) {
   const { produto, cidade } = req.body || {};
   if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
 
-  // Verifica se a chave permite web_search
   const detect = await detectOpenAIWebSupport(apiKey);
   if (!detect.webAvailable) {
     console.error("[buscar] Chave OpenAI não permite web_search:", detect.details);
     return res.status(500).json({ error: "A chave OpenAI não permite buscas na web", details: detect.details });
   }
 
-  // Requisição principal para buscar anúncios recentes
   const requestBody = {
     model: "gpt-4.1",
     tools: [{ type: "web_search" }],
     input: [
       {
         role: "system",
-        content: `Você é um agente que busca anúncios do mercado de usados no Brasil. Busque anúncios de "${produto}" em "${cidade}", publicados recentemente, e devolva apenas JSON com "items".`
+        content: `Você é um agente que busca anúncios de produtos usados no Brasil. Busque anúncios de "${produto}" em "${cidade}", publicados recentemente.`
       },
       {
         role: "user",
-        content: `Produto: ${produto}\nCidade: ${cidade}\nRetorne apenas JSON com a estrutura: {"items":[{"title":"","price":"","location":"","date":"","analysis":"","link":"","img":""}]}`
+        content: `Produto: ${produto}\nCidade: ${cidade}\nRetorne apenas JSON válido no formato: {"items":[{"title":"","price":"","location":"","date":"","analysis":"","link":"","img":""}]}`
       }
     ],
-    text: { format: "json" },
     temperature: 0.0,
     max_output_tokens: 1200,
   };
@@ -94,7 +89,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Falha na busca OpenAI", details: openaiResp.body || openaiResp.raw });
   }
 
-  // Extrai items do JSON retornado
   let items = [];
   try {
     const body = openaiResp.body;
