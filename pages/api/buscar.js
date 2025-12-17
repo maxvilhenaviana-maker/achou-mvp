@@ -20,18 +20,12 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas profissional em ${cidade}.
-            Sua missão é encontrar anúncios REAIS, DIFERENTES e ÚNICOS.
-
-            FILTROS OBRIGATÓRIOS:
-            1. LOCALIZAÇÃO: Apenas anúncios em ${cidade} ou região metropolitana imediata. PROIBIDO outras cidades ou países.
-            2. ESTADO: PROIBIDO itens com "defeito", "quebrado", "estragado", "sem prato" ou "para conserto".
-            3. DIVERSIDADE: Cada item deve ser um anúncio diferente. Não repita o mesmo item.
-            4. FRESCURA: Priorize anúncios publicados recentemente (HOJE ou ONTEM).
-
-            Retorne estritamente um JSON no formato: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            content: `Você é um Caçador de Ofertas em ${cidade}.
+            Encontre 3 anúncios Reais e Diferentes de ${produto}.
+            REGRAS: Ignore itens estragados ou para peças.
+            Retorne um JSON no formato: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre as melhores ofertas distintas de ${produto} em ${cidade}.` }
+          { role: "user", content: `3 melhores ofertas de ${produto} em ${cidade} hoje.` }
         ],
       }),
     });
@@ -41,61 +35,40 @@ export default async function handler(req, res) {
 
     let content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{.*\}/s);
-    let itemsFinal = [];
     
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      const rawItems = parsed.items || [];
+      let items = parsed.items || [];
 
-      // --- 1. LIMPEZA, FILTRAGEM E CONVERSÃO NUMÉRICA ---
-      const seenTitles = new Set();
-      const seenLinks = new Set();
-      
-      const filtrados = rawItems.filter(it => {
-        const titleLower = it.title.toLowerCase();
-        const analysisLower = it.analysis.toLowerCase();
-        const locationLower = it.location.toLowerCase();
-        const linkLower = it.link.toLowerCase();
-        
-        // Remove duplicados (Título ou Link)
-        if (seenTitles.has(titleLower) || seenLinks.has(linkLower)) return false;
-        
-        // Filtro rígido de defeitos
-        const temDefeito = ["defeito", "quebrado", "conserto", "estragado", "peças", "sem prato", "sucata"].some(word => 
-          titleLower.includes(word) || analysisLower.includes(word)
-        );
-        if (temDefeito) return false;
+      // 1. Tratamento de Dados (sem deletar itens por erro de preço)
+      items = items.map(it => {
+        // Limpa o preço: remove "R$", espaços e pontos de milhar, troca vírgula por ponto
+        let cleanPrice = it.price.replace(/[R$\s.]/g, '').replace(',', '.');
+        let priceNum = parseFloat(cleanPrice) || 0;
 
-        // Filtro de Localização (Garante que é na cidade certa)
-        const cidadeAlvo = cidade.toLowerCase().split(' ')[0];
-        if (!locationLower.includes(cidadeAlvo)) return false;
-
-        seenTitles.add(titleLower);
-        seenLinks.add(linkLower);
-        return true;
-      });
-
-      // --- 2. PREPARAÇÃO PARA ORDENAÇÃO ---
-      itemsFinal = filtrados.map(it => {
-        // Extrai apenas números do preço para permitir ordenação matemática (ex: "R$ 180,00" -> 180)
-        const priceNum = parseFloat(it.price.replace(/[^\d,]/g, '').replace(',', '.')) || 999999;
         return {
           ...it,
           price_num: priceNum,
           img: "/placeholder-120x90.png",
-          analysis: `✨ Oportunidade Real: ${it.analysis}`
+          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
         };
       });
 
-      // --- 3. ORDENAÇÃO: MENOR PREÇO PARA O MAIOR ---
-      itemsFinal.sort((a, b) => a.price_num - b.price_num);
+      // 2. Ordenação por Preço (Menor para Maior)
+      // Usamos uma lógica que lida com zeros (colocando-os no final se necessário)
+      items.sort((a, b) => {
+        if (a.price_num === 0) return 1;
+        if (b.price_num === 0) return -1;
+        return a.price_num - b.price_num;
+      });
+
+      return res.status(200).json({ items: items.slice(0, 3) });
     }
 
-    // Retorna os 3 melhores após ordenar e filtrar
-    return res.status(200).json({ items: itemsFinal.slice(0, 3) });
+    return res.status(200).json({ items: [] });
 
   } catch (err) {
-    console.error("Erro no Servidor:", err);
+    console.error("Erro no processamento:", err);
     return res.status(500).json({ error: "Erro interno", details: err.message });
   }
 }
