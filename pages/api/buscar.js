@@ -16,50 +16,44 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", 
+        // 1. Usamos o modelo que já faz busca nativamente
+        model: "gpt-4o-mini-search-preview", 
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas. Busque na internet anúncios de ${produto} em ${cidade}. 
-            Compare os preços e retorne APENAS as 3 melhores oportunidades (menor preço e bom estado).
-            Ignore anúncios de 'peças' ou 'conserto'.
+            content: `Você é um Caçador de Ofertas. Pesquise na internet anúncios reais de ${produto} em ${cidade}. 
+            Compare os preços encontrados e selecione APENAS os 3 melhores (menor preço e bom estado).
             Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre ${produto} em ${cidade} hoje.` }
+          { role: "user", content: `Quais as 3 melhores ofertas de ${produto} em ${cidade} hoje?` }
         ],
-        // Nota: web_search é uma ferramenta que exige que sua conta tenha permissão de busca.
-        // Se der erro 400, remova a linha abaixo.
-        tools: [{ type: "web_search" }], 
-        temperature: 0
+        // 2. REMOVEMOS 'tools' e 'temperature' para evitar o erro 400
       }),
     });
 
     const data = await response.json();
 
-    // Se a IA retornar erro (como modelo não encontrado ou falta de permissão)
     if (data.error) {
-      console.error("Erro da OpenAI:", data.error);
+      console.error("Erro detalhado da OpenAI:", data.error);
       return res.status(500).json({ error: data.error.message });
     }
 
     let content = data.choices[0].message.content;
     
-    // Limpeza de possíveis marcações Markdown que a IA as vezes coloca
+    // Limpeza de Markdown (caso a IA coloque ```json ... ```)
     const jsonMatch = content.match(/\{.*\}/s);
+    let items = [];
+    
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      
-      // Adiciona a lógica de análise de mercado para cada item
-      const items = (parsed.items || []).map(it => ({
+      items = (parsed.items || []).map(it => ({
         ...it,
-        img: "/placeholder-120x90.png", // Placeholder fixo
-        analysis: it.analysis + " (Verificado via IA)"
+        img: "/placeholder-120x90.png",
+        analysis: it.analysis || "Oferta encontrada via busca em tempo real."
       }));
-
-      return res.status(200).json({ items: items.slice(0, 3) });
     }
 
-    return res.status(200).json({ items: [] });
+    return res.status(200).json({ items: items.slice(0, 3) });
 
   } catch (err) {
     console.error("Erro no Servidor:", err);
