@@ -68,8 +68,8 @@ export default async function handler(req, res) {
       model: "gpt-4o-mini",
       tools: [{ type: "web_search" }],
       input: [
-        { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
-        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. Selecione apenas os 3 melhores anúncios considerando: preço mais baixo, sem defeito, mais recente e localização central. Retorne JSON apenas com um array "items" (title, price, location, date, analysis, link).` }
+        { role: "system", content: "Você é um assistente que busca as melhores oportunidades em anúncios recentes na web." },
+        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. Selecione os 3 melhores anúncios considerando: preço mais baixo, sem defeito, mais recente e localização central. Retorne JSON apenas com um array "items" (title, price, location, date, analysis, link).` }
       ],
       temperature: 0,
       max_output_tokens: 1500
