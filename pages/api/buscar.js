@@ -65,7 +65,7 @@ export default async function handler(req, res) {
 
   try {
     const requestBody = {
-      model: "gpt-4.1",
+      model: "gpt-4o-mini-search-preview",
       tools: [{ type: "web_search" }],
       input: [
         { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
