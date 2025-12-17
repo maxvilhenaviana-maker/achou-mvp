@@ -1,10 +1,10 @@
-// pages/api/buscar.js
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
-const OPENAI_BASE = "https://api.openai.com/v1/responses";
+// CORREÇÃO: Endpoint correto da API de Chat
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 async function callOpenAI(body, apiKey) {
-  const resp = await fetch(OPENAI_BASE, {
+  const resp = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -12,21 +12,17 @@ async function callOpenAI(body, apiKey) {
     },
     body: JSON.stringify(body),
   });
-  const text = await resp.text();
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    parsed = { rawText: text };
-  }
-  return { ok: resp.ok, status: resp.status, body: parsed, raw: text };
+  
+  return await resp.json();
 }
 
 function normalizeItems(rawItems) {
+  if (!rawItems || !Array.isArray(rawItems)) return [];
+
   const itemsWithPrice = rawItems
     .map((it) => {
-      const priceStr = it.price !== undefined && it.price !== null ? String(it.price) : '';
-      const priceNum = parseFloat(priceStr.replace(/\D/g, "")) || null;
+      const priceStr = String(it.price || "");
+      const priceNum = parseFloat(priceStr.replace(/[^\d,]/g, "").replace(",", ".")) || null;
 
       return {
         title: it.title || "Sem título",
@@ -39,18 +35,18 @@ function normalizeItems(rawItems) {
         img: "/placeholder-120x90.png",
       };
     })
-    .filter((it) => it.price_num !== null); // descarta itens sem preço
+    .filter((it) => it.price_num !== null)
+    // ORDENAÇÃO: Garante que os mais baratos apareçam primeiro no seu app
+    .sort((a, b) => a.price_num - b.price_num);
 
-  // Cálculos de min, médio e max
   const prices = itemsWithPrice.map(it => it.price_num);
-  const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
-  const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
-  const avgPrice = prices.length > 0 ? (prices.reduce((a,b)=>a+b,0)/prices.length) : 0;
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
 
-  // Adiciona estatísticas no analysis
   return itemsWithPrice.map(it => ({
     ...it,
-    analysis: `${it.analysis || ''} (Menor: R$${minPrice}, Médio: R$${avgPrice.toFixed(2)}, Maior: R$${maxPrice})`
+    analysis: `${it.analysis} (Média de mercado: R$${avgPrice.toFixed(2)})`
   }));
 }
 
@@ -58,53 +54,47 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "OPENAI_API_KEY não configurada" });
-
   const { produto, cidade } = req.body || {};
-  if (!produto || !cidade) return res.status(400).json({ error: "Produto e cidade são obrigatórios" });
 
   try {
     const requestBody = {
-      model: "gpt-4o-mini",
-      tools: [{ type: "web_search" }],
-      input: [
-        { role: "system", content: "Você é um assistente que busca anúncios recentes na web." },
-        { role: "user", content: `Busque anúncios de "${produto}" em "${cidade}", publicados recentemente. Selecione apenas os 3 melhores anúncios considerando: preço mais baixo, sem defeito, mais recente e localização central. Retorne JSON apenas com um array "items" (title, price, location, date, analysis, link).` }
+      model: "gpt-4o-mini", // O modelo mais barato
+      messages: [
+        { 
+          role: "system", 
+          content: `Você é um 'Caçador de Ofertas' profissional. Sua missão é varrer a internet (OLX, Mercado Livre, Facebook) em busca de anúncios em ${cidade}. 
+          CRITÉRIO DE SELEÇÃO:
+          1. Encontre pelo menos 10 anúncios.
+          2. Compare os preços entre eles.
+          3. Filtre e retorne APENAS os 3 que tiverem o menor preço, mas que estejam em bom estado.
+          4. Ignore anúncios que sejam apenas 'peças' ou 'conserto' a menos que solicitado.
+          Retorne estritamente um JSON no formato: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}`
+        },
+        { role: "user", content: `Encontre as 3 melhores oportunidades de "${produto}" em "${cidade}" hoje.` }
       ],
-      temperature: 0,
-      max_output_tokens: 1500
+      // Habilita a busca na internet
+      tools: [{ type: "web_search" }], 
+      temperature: 0.2 // Menor temperatura = mais precisão nos dados
     };
 
-    const openaiResp = await callOpenAI(requestBody, apiKey);
-    if (!openaiResp.ok) return res.status(500).json({ error: "Erro ao buscar na OpenAI" });
-
+    const data = await callOpenAI(requestBody, apiKey);
+    
+    // Extração do JSON da resposta da IA
     let items = [];
-
-    if (openaiResp.body?.output?.length > 0) {
-      for (const out of openaiResp.body.output) {
-        if (out.type === "message" && out.content?.length > 0) {
-          for (const c of out.content) {
-            if (c.type === "output_text" && c.text) {
-              const match = c.text.match(/\{.*"items":.*\}/s);
-              if (match) {
-                try {
-                  const parsed = JSON.parse(match[0]);
-                  if (parsed.items) items = items.concat(parsed.items);
-                } catch (e) {
-                  console.error("[buscar] falha ao parsear JSON regex:", e);
-                }
-              }
-            }
-          }
-        }
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (content) {
+      const jsonMatch = content.match(/\{.*\}/s);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        items = parsed.items || [];
       }
     }
 
     const normalized = normalizeItems(items);
-    return res.status(200).json({ items: normalized });
+    return res.status(200).json({ items: normalized.slice(0, 3) });
 
   } catch (err) {
-    console.error("[buscar] Erro inesperado:", err);
-    return res.status(500).json({ error: "Erro inesperado no servidor", details: String(err) });
+    return res.status(500).json({ error: "Erro ao processar busca", details: err.message });
   }
 }
