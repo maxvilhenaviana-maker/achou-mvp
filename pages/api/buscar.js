@@ -20,19 +20,18 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Especialista em Compras e Caçador de Ofertas implacável.
-            Sua tarefa é encontrar as 3 melhores oportunidades reais de "${produto}" em "${cidade}".
+            content: `Você é um Caçador de Ofertas profissional em ${cidade}.
+            Sua missão é encontrar 3 anúncios REAIS, DIFERENTES e ÚNICOS.
 
-            REGRAS CRÍTICAS DE FILTRO:
-            1. PROIBIDO: Não retorne NADA que mencione "defeito", "estragado", "para conserto", "para retirar peças", "quebrado" ou "não liga".
-            2. RECENTES PRIMEIRO: Priorize anúncios publicados HOJE ou ONTEM.
-            3. MELHOR PREÇO: Entre produtos em bom estado e recentes, escolha sempre os 3 de menor preço.
-            4. VERIFICAÇÃO: Compare pelo menos 10 anúncios antes de selecionar os 3 finais.
+            FILTROS OBRIGATÓRIOS:
+            1. LOCALIZAÇÃO: Apenas anúncios em ${cidade} ou região metropolitana imediata. PROIBIDO outras cidades ou países.
+            2. ESTADO: PROIBIDO itens com "defeito", "quebrado", "estragado", "sem prato" ou "para conserto".
+            3. DIVERSIDADE: Cada um dos 3 itens deve ser um anúncio diferente. Não repita o mesmo item.
+            4. FRESCURA: Priorize anúncios publicados HOJE ou ONTEM.
 
-            Retorne estritamente um JSON no formato: 
-            {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Procure anúncios de ${produto} em ${cidade}. Ignore sucata/defeitos e selecione os 3 melhores preços de itens recentes.` }
+          { role: "user", content: `Encontre 3 ofertas distintas de ${produto} em ${cidade}.` }
         ],
       }),
     });
@@ -46,22 +45,40 @@ export default async function handler(req, res) {
     
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      items = (parsed.items || []).map(it => ({
-        ...it,
-        img: "/placeholder-120x90.png",
-        // Adicionamos uma tag visual de análise para o usuário
-        analysis: `✨ Oportunidade: ${it.analysis}`
-      }));
+      const rawItems = parsed.items || [];
 
-      // Double-check de segurança no código: remover qualquer item que a IA deixou passar com "defeito"
-      items = items.filter(it => 
-        !it.title.toLowerCase().includes("defeito") && 
-        !it.analysis.toLowerCase().includes("defeito") &&
-        !it.title.toLowerCase().includes("conserto")
-      );
+      // --- LÓGICA DE LIMPEZA E DESDUPLICAÇÃO ---
+      const seenTitles = new Set();
+      
+      items = rawItems.filter(it => {
+        const titleLower = it.title.toLowerCase();
+        const analysisLower = it.analysis.toLowerCase();
+        const locationLower = it.location.toLowerCase();
+        
+        // 1. Remove duplicados (mesmo título ou título muito similar)
+        if (seenTitles.has(titleLower)) return false;
+        seenTitles.add(titleLower);
+
+        // 2. Filtro rígido de palavras proibidas (defeitos)
+        const temDefeito = ["defeito", "quebrado", "conserto", "estragado", "peças", "sem prato"].some(word => 
+          titleLower.includes(word) || analysisLower.includes(word)
+        );
+        if (temDefeito) return false;
+
+        // 3. Garante que a cidade está na localização (evita Açores/Portugal)
+        const cidadeAlvo = cidade.toLowerCase().split(' ')[0]; // pega o primeiro nome da cidade
+        if (!locationLower.includes(cidadeAlvo)) return false;
+
+        return true;
+      });
     }
 
-    return res.status(200).json({ items: items.slice(0, 3) });
+    // Retorna os 3 primeiros que passaram nos filtros
+    return res.status(200).json({ items: items.slice(0, 3).map(it => ({
+      ...it,
+      img: "/placeholder-120x90.png",
+      analysis: `✨ Oportunidade Real: ${it.analysis}`
+    }))});
 
   } catch (err) {
     return res.status(500).json({ error: "Erro interno", details: err.message });
