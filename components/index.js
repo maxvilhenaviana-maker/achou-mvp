@@ -22,13 +22,14 @@ export default function Home() {
   const [cidade, setCidade] = useState('');
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
+  const [precoMedio, setPrecoMedio] = useState(null); // Novo estado para o preço médio
   const [error, setError] = useState(null);
   const [searchExecuted, setSearchExecuted] = useState(false);
 
   async function buscar(e){
     e?.preventDefault();
     if(!produto || !cidade) { setError('Preencha produto e cidade'); return; }
-    setError(null); setLoading(true); setItems([]); setSearchExecuted(false);
+    setError(null); setLoading(true); setItems([]); setPrecoMedio(null); setSearchExecuted(false);
 
     try{
       const resp = await fetch('/api/buscar', {
@@ -39,7 +40,11 @@ export default function Home() {
       const json = await resp.json();
 
       if(json.error) setError(json.error);
-      else if(json.items) setItems(json.items);
+      else {
+        // Captura os itens e o preço médio da nova estrutura da API
+        if(json.items) setItems(json.items);
+        if(json.precoMedio) setPrecoMedio(json.precoMedio);
+      }
 
     } catch(err){
       setError('Erro ao buscar. Verifique sua conexão e o console.');
@@ -75,10 +80,28 @@ export default function Home() {
         </div>
 
         <div className="resultsHeader">
-          {produto && searchExecuted && <div style={{fontWeight:700}}>
-            Resultados para: {produto} — {cidade}
-            <p className="small">As 3 melhores ofertas analisadas pelo radar.</p>
-          </div>}
+          {produto && searchExecuted && (
+            <div style={{fontWeight:700, marginBottom: '20px'}}>
+              Resultados para: {produto} — {cidade}
+              
+              {/* Exibição do Preço Médio com destaque visual */}
+              {precoMedio > 0 && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '10px 15px',
+                  background: '#f0f9ff',
+                  borderLeft: '4px solid #0070f3',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  color: '#005bb5'
+                }}>
+                  💰 Preço médio de mercado nesta região: <strong>R$ {precoMedio}</strong>
+                </div>
+              )}
+              
+              <p className="small" style={{marginTop: '10px'}}>As 3 melhores ofertas analisadas pelo radar.</p>
+            </div>
+          )}
         </div>
 
         {error && <div style={{color:'red',marginBottom:12,padding:'12px',background:'#fee',borderRadius:'8px'}}>{error}</div>}
