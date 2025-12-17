@@ -20,22 +20,25 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas implacável em ${cidade}.
+            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
             Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
+
+            REGRAS DE LOCALIZAÇÃO:
+            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana (ex: se for BH, busque em Contagem, Betim, Nova Lima, etc).
+            - No campo "location", escreva sempre o nome da cidade e o bairro.
 
             CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
             - Itens com furo, ferrugem, amassados ou defeitos técnicos.
             - Anúncios de "conserto", "retirada de peças" ou "sucata".
-            - Itens localizados fora de ${cidade} ou região próxima.
 
-            CRITÉRIOS DE SELEÇÃO:
-            1. Encontre pelo menos 8 anúncios e compare-os.
-            2. Selecione os 3 que tiverem o menor preço, MAS que estejam em BOM ESTADO e sejam RECENTES.
-            3. Se houver empate de preço, priorize o anúncio mais novo.
+            CRITÉRIOS DE SELEÇÃO E DESEMPATE:
+            1. Prioridade total para o MENOR PREÇO em bom estado.
+            2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
+            3. Se o preço e a cidade forem iguais, priorize o mais recente.
 
             Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade}. Não aceite itens com defeito ou ferrugem.` }
+          { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem.` }
         ],
       }),
     });
@@ -51,25 +54,38 @@ export default async function handler(req, res) {
       const parsed = JSON.parse(jsonMatch[0]);
       let rawItems = parsed.items || [];
 
-      // 1. Limpeza e Extração Numérica para Ordenação
       itemsFinal = rawItems.map(it => {
-        // Limpa o preço para garantir que o sort funcione
+        // 1. Limpeza de Preço
         const cleanPrice = it.price.replace(/[R$\s.]/g, '').replace(',', '.');
         const priceNum = parseFloat(cleanPrice) || 999999;
+
+        // 2. Identifica se o item é da cidade principal para o desempate
+        // (Verifica se o nome da cidade principal aparece na localização retornada)
+        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
         return {
           ...it,
           price_num: priceNum,
+          is_main_city: eCidadePrincipal, // campo temporário para ordenação
           img: "/placeholder-120x90.png",
           analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
         };
       });
 
-      // 2. Ordenação Final por Preço (Garante o menor valor no topo)
-      itemsFinal.sort((a, b) => a.price_num - b.price_num);
+      // --- LÓGICA DE ORDENAÇÃO AVANÇADA ---
+      itemsFinal.sort((a, b) => {
+        // Primeiro critério: Menor Preço
+        if (a.price_num !== b.price_num) {
+          return a.price_num - b.price_num;
+        }
+        // Segundo critério (Desempate): Se preço igual, cidade principal vem antes (true > false)
+        if (a.is_main_city !== b.is_main_city) {
+          return a.is_main_city ? -1 : 1;
+        }
+        return 0;
+      });
     }
 
-    // Retorna os 3 melhores (já ordenados)
     return res.status(200).json({ items: itemsFinal.slice(0, 3) });
 
   } catch (err) {
