@@ -16,31 +16,31 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // 1. Usamos o modelo que já faz busca nativamente
         model: "gpt-4o-mini-search-preview", 
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas. Pesquise na internet anúncios reais de ${produto} em ${cidade}. 
-            Compare os preços encontrados e selecione APENAS os 3 melhores (menor preço e bom estado).
-            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            content: `Você é um Especialista em Compras e Caçador de Ofertas implacável.
+            Sua tarefa é encontrar as 3 melhores oportunidades reais de "${produto}" em "${cidade}".
+
+            REGRAS CRÍTICAS DE FILTRO:
+            1. PROIBIDO: Não retorne NADA que mencione "defeito", "estragado", "para conserto", "para retirar peças", "quebrado" ou "não liga".
+            2. RECENTES PRIMEIRO: Priorize anúncios publicados HOJE ou ONTEM.
+            3. MELHOR PREÇO: Entre produtos em bom estado e recentes, escolha sempre os 3 de menor preço.
+            4. VERIFICAÇÃO: Compare pelo menos 10 anúncios antes de selecionar os 3 finais.
+
+            Retorne estritamente um JSON no formato: 
+            {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Quais as 3 melhores ofertas de ${produto} em ${cidade} hoje?` }
+          { role: "user", content: `Procure anúncios de ${produto} em ${cidade}. Ignore sucata/defeitos e selecione os 3 melhores preços de itens recentes.` }
         ],
-        // 2. REMOVEMOS 'tools' e 'temperature' para evitar o erro 400
       }),
     });
 
     const data = await response.json();
-
-    if (data.error) {
-      console.error("Erro detalhado da OpenAI:", data.error);
-      return res.status(500).json({ error: data.error.message });
-    }
+    if (data.error) return res.status(500).json({ error: data.error.message });
 
     let content = data.choices[0].message.content;
-    
-    // Limpeza de Markdown (caso a IA coloque ```json ... ```)
     const jsonMatch = content.match(/\{.*\}/s);
     let items = [];
     
@@ -49,14 +49,21 @@ export default async function handler(req, res) {
       items = (parsed.items || []).map(it => ({
         ...it,
         img: "/placeholder-120x90.png",
-        analysis: it.analysis || "Oferta encontrada via busca em tempo real."
+        // Adicionamos uma tag visual de análise para o usuário
+        analysis: `✨ Oportunidade: ${it.analysis}`
       }));
+
+      // Double-check de segurança no código: remover qualquer item que a IA deixou passar com "defeito"
+      items = items.filter(it => 
+        !it.title.toLowerCase().includes("defeito") && 
+        !it.analysis.toLowerCase().includes("defeito") &&
+        !it.title.toLowerCase().includes("conserto")
+      );
     }
 
     return res.status(200).json({ items: items.slice(0, 3) });
 
   } catch (err) {
-    console.error("Erro no Servidor:", err);
     return res.status(500).json({ error: "Erro interno", details: err.message });
   }
 }
