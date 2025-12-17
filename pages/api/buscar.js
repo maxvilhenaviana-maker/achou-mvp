@@ -23,23 +23,19 @@ export default async function handler(req, res) {
             content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
             Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
-            - No campo "location", escreva o nome da cidade e o bairro.
+            CRITÉRIOS DE EXCLUSÃO (OBRIGATÓRIO):
+            - PROIBIDO: Itens de LEILÃO ou "lance inicial". Apenas venda direta.
+            - PROIBIDO: Itens com furo, ferrugem ou defeitos.
+            - PROIBIDO: Anúncios de "conserto" ou "peças".
 
-            CRITÉRIOS DE EXCLUSÃO CRÍTICOS (PROIBIDO):
-            - PROIBIDO: Itens de LEILÃO ou que mencionem "lance inicial". Queremos apenas venda direta.
-            - PROIBIDO: Itens com furo, ferrugem, amassados ou defeitos técnicos.
-            - PROIBIDO: Anúncios de "conserto", "retirada de peças" ou "sucata".
+            REGRAS DE SELEÇÃO:
+            1. Busque em ${cidade} e cidades vizinhas (região metropolitana).
+            2. Selecione os 3 menores preços em bom estado.
+            3. Em caso de empate de preço, coloque o anúncio de ${cidade} no topo.
 
-            CRITÉRIOS DE SELEÇÃO E DESEMPATE:
-            1. Prioridade total para o MENOR PREÇO em bom estado.
-            2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade}.
-            3. Se o preço e a cidade forem iguais, priorize o mais recente.
-
-            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            Retorne um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre as 3 melhores ofertas de ${produto} em ${cidade} e região. Não aceite leilão, defeitos ou ferrugem.` }
+          { role: "user", content: `Encontre 3 ofertas de ${produto} em ${cidade} e região. Ignore leilões e defeitos.` }
         ],
       }),
     });
@@ -55,30 +51,24 @@ export default async function handler(req, res) {
       const parsed = JSON.parse(jsonMatch[0]);
       let rawItems = parsed.items || [];
 
-      itemsFinal = rawItems
-        .filter(it => {
-          // FILTRO DE SEGURANÇA EXTRA NO JAVASCRIPT
-          const textoBusca = (it.title + it.analysis).toLowerCase();
-          const termosProibidos = ["leilão", "leilao", "lance", "arremate", "defeito", "ferrugem", "sucata"];
-          
-          // Se encontrar qualquer termo proibido, descarta o item
-          return !termosProibidos.some(termo => textoBusca.includes(termo));
-        })
-        .map(it => {
-          const cleanPrice = it.price.replace(/[R$\s.]/g, '').replace(',', '.');
-          const priceNum = parseFloat(cleanPrice) || 999999;
-          const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
+      // Processamento sem descartar itens (para evitar lista vazia)
+      itemsFinal = rawItems.map(it => {
+        const cleanPrice = it.price.replace(/[R$\s.]/g, '').replace(',', '.');
+        const priceNum = parseFloat(cleanPrice) || 999999;
+        
+        // Verifica se é a cidade principal para critério de desempate
+        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
-          return {
-            ...it,
-            price_num: priceNum,
-            is_main_city: eCidadePrincipal,
-            img: "/placeholder-120x90.png",
-            analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
-          };
-        });
+        return {
+          ...it,
+          price_num: priceNum,
+          is_main_city: eCidadePrincipal,
+          img: "/placeholder-120x90.png",
+          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
+        };
+      });
 
-      // ORDENAÇÃO: Preço primeiro, depois Cidade Principal
+      // ORDENAÇÃO: 1º Preço, 2º Cidade Principal
       itemsFinal.sort((a, b) => {
         if (a.price_num !== b.price_num) return a.price_num - b.price_num;
         if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
