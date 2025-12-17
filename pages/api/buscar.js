@@ -20,22 +20,11 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
-
-            CRITÉRIOS DE EXCLUSÃO (OBRIGATÓRIO):
-            - PROIBIDO: Itens de LEILÃO ou "lance inicial". Apenas venda direta.
-            - PROIBIDO: Itens com furo, ferrugem ou defeitos.
-            - PROIBIDO: Anúncios de "conserto" ou "peças".
-
-            REGRAS DE SELEÇÃO:
-            1. Busque em ${cidade} e cidades vizinhas (região metropolitana).
-            2. Selecione os 3 menores preços em bom estado.
-            3. Em caso de empate de preço, coloque o anúncio de ${cidade} no topo.
-
-            Retorne um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            content: `Você é um Caçador de Ofertas em ${cidade}. Busque 3 oportunidades de "${produto}" na região metropolitana.
+            REGRAS: Proibido leilão, lance, ferrugem ou defeitos. 
+            Retorne APENAS o JSON puro, sem comentários: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre 3 ofertas de ${produto} em ${cidade} e região. Ignore leilões e defeitos.` }
+          { role: "user", content: `Ofertas de ${produto} em ${cidade} e região. Sem leilão ou defeitos.` }
         ],
       }),
     });
@@ -44,36 +33,44 @@ export default async function handler(req, res) {
     if (data.error) return res.status(500).json({ error: data.error.message });
 
     let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{.*\}/s);
+    
+    // Tenta extrair o JSON de forma robusta
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
     let itemsFinal = [];
     
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      let rawItems = parsed.items || [];
+      try {
+        // Limpa caracteres que costumam quebrar o JSON (quebras de linha dentro de strings)
+        const cleanJson = jsonMatch[0].replace(/\n/g, " ").replace(/\r/g, " ");
+        const parsed = JSON.parse(cleanJson);
+        let rawItems = parsed.items || [];
 
-      // Processamento sem descartar itens (para evitar lista vazia)
-      itemsFinal = rawItems.map(it => {
-        const cleanPrice = it.price.replace(/[R$\s.]/g, '').replace(',', '.');
-        const priceNum = parseFloat(cleanPrice) || 999999;
-        
-        // Verifica se é a cidade principal para critério de desempate
-        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
+        itemsFinal = rawItems.map(it => {
+          const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
+          const priceNum = parseFloat(cleanPrice) || 999999;
+          const eCidadePrincipal = String(it.location).toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
-        return {
-          ...it,
-          price_num: priceNum,
-          is_main_city: eCidadePrincipal,
-          img: "/placeholder-120x90.png",
-          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
-        };
-      });
+          return {
+            ...it,
+            price_num: priceNum,
+            is_main_city: eCidadePrincipal,
+            img: "/placeholder-120x90.png",
+            analysis: String(it.analysis).startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
+          };
+        });
 
-      // ORDENAÇÃO: 1º Preço, 2º Cidade Principal
-      itemsFinal.sort((a, b) => {
-        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
-        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
-        return 0;
-      });
+        // Ordenação: 1º Preço, 2º Cidade
+        itemsFinal.sort((a, b) => {
+          if (a.price_num !== b.price_num) return a.price_num - b.price_num;
+          if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
+          return 0;
+        });
+
+      } catch (parseError) {
+        console.error("Erro ao processar JSON da IA:", parseError);
+        // Se falhar o parse, não quebra o app, apenas retorna vazio para o usuário tentar de novo
+        return res.status(200).json({ items: [] });
+      }
     }
 
     return res.status(200).json({ items: itemsFinal.slice(0, 3) });
