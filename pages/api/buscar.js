@@ -28,8 +28,8 @@ export default async function handler(req, res) {
             - No campo "location", escreva sempre o nome da cidade e o bairro.
 
             CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
-            - Itens com furo, ferrugem, amassados, leilão, lance, consórcio ou defeitos técnicos.
-            - Anúncios de "conserto", "retirada de peças" ou "sucata".
+            - Itens com furo, ferrugem, amassados ou defeitos técnicos.
+            - Anúncios de "conserto", "leilão", "retirada de peças" ou "sucata".
 
             CRITÉRIOS DE SELEÇÃO E DESEMPATE:
             1. Prioridade total para o MENOR PREÇO em bom estado.
