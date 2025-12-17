@@ -20,25 +20,20 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
+            content: `Você é um Especialista em Inteligência de Mercado em ${cidade}.
+            Sua missão é tripla:
+            1. Calcular o PREÇO MÉDIO real de mercado para "${produto}" em bom estado na região.
+            2. Encontrar as 3 MELHORES oportunidades (menor preço) ignorando defeitos, ferrugem e leilões.
+            3. Analisar anúncios de ${cidade} e região metropolitana.
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana (ex: se for BH, busque em Contagem, Betim, Nova Lima, etc).
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
+            Regras de Saída:
+            - precoMedio: Apenas o valor numérico (ex: 450).
+            - items: Lista com os 3 melhores achados.
 
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
-            - Itens com furo, ferrugem, amassados ou defeitos técnicos.
-            - Anúncios de "conserto", "leilão", "retirada de peças" ou "sucata".
-
-            CRITÉRIOS DE SELEÇÃO E DESEMPATE:
-            1. Prioridade total para o MENOR PREÇO em bom estado.
-            2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
-            3. Se o preço e a cidade forem iguais, priorize o mais recente.
-
-            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            Retorne estritamente um JSON: 
+            {"precoMedio": 0, "items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem.` }
+          { role: "user", content: `Qual o preço médio e os 3 melhores anúncios de ${produto} em ${cidade} e região?` }
         ],
       }),
     });
@@ -47,46 +42,40 @@ export default async function handler(req, res) {
     if (data.error) return res.status(500).json({ error: data.error.message });
 
     let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{.*\}/s);
-    let itemsFinal = [];
+    const jsonMatch = content.match(/\{[\s\S]*\}/s);
+    
+    let finalResponse = { precoMedio: 0, items: [] };
     
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      finalResponse.precoMedio = parsed.precoMedio || 0;
       let rawItems = parsed.items || [];
 
-      itemsFinal = rawItems.map(it => {
-        // 1. Limpeza de Preço
-        const cleanPrice = it.price.replace(/[R$\s.]/g, '').replace(',', '.');
+      let processedItems = rawItems.map(it => {
+        const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
         const priceNum = parseFloat(cleanPrice) || 999999;
-
-        // 2. Identifica se o item é da cidade principal para o desempate
-        // (Verifica se o nome da cidade principal aparece na localização retornada)
-        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
+        const eCidadePrincipal = String(it.location).toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
         return {
           ...it,
           price_num: priceNum,
-          is_main_city: eCidadePrincipal, // campo temporário para ordenação
+          is_main_city: eCidadePrincipal,
           img: "/placeholder-120x90.png",
           analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
         };
       });
 
-      // --- LÓGICA DE ORDENAÇÃO AVANÇADA ---
-      itemsFinal.sort((a, b) => {
-        // Primeiro critério: Menor Preço
-        if (a.price_num !== b.price_num) {
-          return a.price_num - b.price_num;
-        }
-        // Segundo critério (Desempate): Se preço igual, cidade principal vem antes (true > false)
-        if (a.is_main_city !== b.is_main_city) {
-          return a.is_main_city ? -1 : 1;
-        }
+      // Ordenação rigorosa por preço
+      processedItems.sort((a, b) => {
+        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
+        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
         return 0;
       });
+
+      finalResponse.items = processedItems.slice(0, 3);
     }
 
-    return res.status(200).json({ items: itemsFinal.slice(0, 3) });
+    return res.status(200).json(finalResponse);
 
   } catch (err) {
     return res.status(500).json({ error: "Erro interno", details: err.message });
