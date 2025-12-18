@@ -36,10 +36,7 @@ export default async function handler(req, res) {
             2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
             3. Se o preço e a cidade forem iguais, priorize o mais recente.
 
-            INFORMAÇÃO ADICIONAL:
-            - Com base na sua busca, estime o PREÇO MÉDIO de mercado para este item em bom estado.
-
-            Retorne estritamente um JSON: {"precoMedio": 0, "items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
           { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem.` }
         ],
@@ -51,17 +48,16 @@ export default async function handler(req, res) {
 
     let content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{.*\}/s);
-    let finalResponse = { precoMedio: 0, items: [] };
+    let itemsFinal = [];
     
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      finalResponse.precoMedio = parsed.precoMedio || 0;
       let rawItems = parsed.items || [];
 
-      let processedItems = rawItems.map(it => {
+      itemsFinal = rawItems.map(it => {
         const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
         const priceNum = parseFloat(cleanPrice) || 999999;
-        const eCidadePrincipal = String(it.location).toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
+        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
         return {
           ...it,
@@ -72,19 +68,22 @@ export default async function handler(req, res) {
         };
       });
 
-      // --- LÓGICA DE ORDENAÇÃO PADRÃO (O QUE FUNCIONOU) ---
-      processedItems.sort((a, b) => {
+      itemsFinal.sort((a, b) => {
         if (a.price_num !== b.price_num) return a.price_num - b.price_num;
         if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
         return 0;
       });
-
-      finalResponse.items = processedItems;
     }
 
+    const top3 = itemsFinal.slice(0, 3);
+    
+    // Calcula o preço médio baseado apenas nos 3 melhores resultados reais encontrados
+    const soma = top3.reduce((acc, curr) => acc + (curr.price_num < 999999 ? curr.price_num : 0), 0);
+    const media = top3.length > 0 ? Math.round(soma / top3.length) : 0;
+
     return res.status(200).json({ 
-      precoMedio: finalResponse.precoMedio, 
-      items: finalResponse.items.slice(0, 3) 
+      items: top3,
+      precoMedio: media // Enviado para o index.js sem confundir a IA
     });
 
   } catch (err) {
