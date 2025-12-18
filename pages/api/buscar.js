@@ -55,8 +55,11 @@ export default async function handler(req, res) {
       let rawItems = parsed.items || [];
 
       itemsFinal = rawItems.map(it => {
+        // 1. Limpeza de Preço
         const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
         const priceNum = parseFloat(cleanPrice) || 999999;
+
+        // 2. Identifica se o item é da cidade principal para o desempate
         const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
         return {
@@ -68,6 +71,7 @@ export default async function handler(req, res) {
         };
       });
 
+      // --- LÓGICA DE ORDENAÇÃO PADRÃO (SEU CÓDIGO) ---
       itemsFinal.sort((a, b) => {
         if (a.price_num !== b.price_num) return a.price_num - b.price_num;
         if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
@@ -75,15 +79,16 @@ export default async function handler(req, res) {
       });
     }
 
-    const top3 = itemsFinal.slice(0, 3);
-    
-    // Calcula o preço médio baseado apenas nos 3 melhores resultados reais encontrados
-    const soma = top3.reduce((acc, curr) => acc + (curr.price_num < 999999 ? curr.price_num : 0), 0);
-    const media = top3.length > 0 ? Math.round(soma / top3.length) : 0;
+    const finalItems = itemsFinal.slice(0, 3);
+
+    // --- CÁLCULO DO PREÇO MÉDIO (Lógica Interna JS) ---
+    // Fazemos a média apenas dos resultados reais retornados pela IA
+    const soma = finalItems.reduce((acc, curr) => acc + (curr.price_num < 999999 ? curr.price_num : 0), 0);
+    const media = finalItems.length > 0 ? Math.round(soma / finalItems.length) : 0;
 
     return res.status(200).json({ 
-      items: top3,
-      precoMedio: media // Enviado para o index.js sem confundir a IA
+      items: finalItems,
+      precoMedio: media // Adicionado para o seu index.js
     });
 
   } catch (err) {
