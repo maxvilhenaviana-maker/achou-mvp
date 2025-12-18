@@ -20,20 +20,28 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Especialista em Inteligência de Mercado em ${cidade}.
-            Sua missão é tripla:
-            1. Calcular o PREÇO MÉDIO real de mercado para "${produto}" em bom estado na região.
-            2. Encontrar as 3 MELHORES oportunidades (menor preço) ignorando defeitos, ferrugem e leilões.
-            3. Analisar anúncios de ${cidade} e região metropolitana.
+            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
+            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
 
-            Regras de Saída:
-            - precoMedio: Apenas o valor numérico (ex: 450).
-            - items: Lista com os 3 melhores achados.
+            REGRAS DE LOCALIZAÇÃO:
+            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana (ex: se for BH, busque em Contagem, Betim, Nova Lima, etc).
+            - No campo "location", escreva sempre o nome da cidade e o bairro.
 
-            Retorne estritamente um JSON: 
-            {"precoMedio": 0, "items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
+            - Itens com furo, ferrugem, amassados ou defeitos técnicos.
+            - Anúncios de "conserto", "leilão", "retirada de peças" ou "sucata".
+
+            CRITÉRIOS DE SELEÇÃO E DESEMPATE:
+            1. Prioridade total para o MENOR PREÇO em bom estado.
+            2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
+            3. Se o preço e a cidade forem iguais, priorize o mais recente.
+
+            INFORMAÇÃO ADICIONAL:
+            - Com base na sua busca, estime o PREÇO MÉDIO de mercado para este item em bom estado.
+
+            Retorne estritamente um JSON: {"precoMedio": 0, "items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Qual o preço médio e os 3 melhores anúncios de ${produto} em ${cidade} e região?` }
+          { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem.` }
         ],
       }),
     });
@@ -42,8 +50,7 @@ export default async function handler(req, res) {
     if (data.error) return res.status(500).json({ error: data.error.message });
 
     let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/s);
-    
+    const jsonMatch = content.match(/\{.*\}/s);
     let finalResponse = { precoMedio: 0, items: [] };
     
     if (jsonMatch) {
@@ -65,17 +72,20 @@ export default async function handler(req, res) {
         };
       });
 
-      // Ordenação rigorosa por preço
+      // --- LÓGICA DE ORDENAÇÃO PADRÃO (O QUE FUNCIONOU) ---
       processedItems.sort((a, b) => {
         if (a.price_num !== b.price_num) return a.price_num - b.price_num;
         if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
         return 0;
       });
 
-      finalResponse.items = processedItems.slice(0, 3);
+      finalResponse.items = processedItems;
     }
 
-    return res.status(200).json(finalResponse);
+    return res.status(200).json({ 
+      precoMedio: finalResponse.precoMedio, 
+      items: finalResponse.items.slice(0, 3) 
+    });
 
   } catch (err) {
     return res.status(500).json({ error: "Erro interno", details: err.message });
