@@ -7,6 +7,7 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const { produto, cidade } = req.body || {};
+  const dataHoje = new Date().toLocaleDateString('pt-BR');
 
   try {
     const response = await fetch(OPENAI_URL, {
@@ -20,19 +21,17 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um avaliador rigoroso. Sua missão é encontrar 3 anúncios REAIS e DIFERENTES de "${produto}" em "${cidade}".
+            content: `Você é um radar de oportunidades de ouro (barganhas). Hoje é ${dataHoje}.
+            Busque anúncios de "${produto}" em "${cidade}" e arredores.
 
-            PROIBIÇÕES CRÍTICAS:
-            - Proibido retornar itens repetidos ou o mesmo anúncio 3 vezes.
-            - Proibido inventar links. Se não achar 3, retorne apenas o que achou.
-            - Proibido dar nota alta para preços comuns. 
-
-            LÓGICA DE SCORE (0-100):
-            - Preço < Média: Score 80-100 (Oportunidade de Ouro).
-            - Preço = Média: Score 50-60 (Preço justo, não é oportunidade).
-            - Preço > Média: Score abaixo de 40 (Fuja disso).
-
-            A "analysis" deve ser honesta. Se o preço for ruim, diga: "Nota X/100. Preço acima da média local, não recomendo."
+            REGRAS DE OURO:
+            1. DIVERSIDADE: É proibido retornar o mesmo anúncio ou itens com preços iguais. Ache 3 ofertas DISTINTAS.
+            2. FOCO EM DESAPEGO: Priorize itens usados/seminovos (OLX, Facebook, Mercado Livre) onde o preço é muito abaixo do novo.
+            3. SCORE REALISTA: 
+               - Nota 90-100: Apenas para preços realmente abaixo da média.
+               - Nota 50: Preço normal de mercado.
+               - Se o preço for ruim, dê nota baixa.
+            4. LINKS: Traga apenas links funcionais e reais.
 
             Retorne estritamente JSON:
             {
@@ -42,12 +41,9 @@ export default async function handler(req, res) {
               ]
             }` 
           },
-          { 
-            role: "user", 
-            content: `Encontre 3 ofertas distintas para ${produto} em ${cidade}. Compare preços de fontes diferentes. Não repita o mesmo item.` 
-          }
+          { role: "user", content: `Quero 3 oportunidades reais e diferentes de ${produto} em ${cidade}. Ignore preços de lojas grandes se estiverem caros.` }
         ],
-        temperature: 0.1 // Reduzido drasticamente para evitar "criatividade" e repetições
+        // 'temperature' removida para evitar erro de incompatibilidade com este modelo
       }),
     });
 
@@ -56,33 +52,35 @@ export default async function handler(req, res) {
 
     let content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(500).json({ error: "Erro na resposta da IA." });
+    if (!jsonMatch) return res.status(500).json({ error: "Falha na estrutura de dados da IA." });
     
     const parsed = JSON.parse(jsonMatch[0]);
     let rawItems = parsed.items || [];
 
-    // Filtro de Segurança Anti-Duplicidade no Código
+    // --- FILTRO ANTIDUPLICIDADE NO CÓDIGO ---
+    const seen = new Set();
     const uniqueItems = [];
-    const titles = new Set();
 
-    rawItems.forEach(it => {
-      const cleanTitle = it.title.toLowerCase().trim();
-      if (!titles.has(cleanTitle) && uniqueItems.length < 3) {
-        titles.add(cleanTitle);
+    for (const item of rawItems) {
+      // Cria uma chave única baseada no título e preço para evitar clones
+      const uniqueKey = `${item.title}-${item.price}`.toLowerCase().replace(/\s/g, '');
+      
+      if (!seen.has(uniqueKey) && uniqueItems.length < 3) {
+        seen.add(uniqueKey);
         
-        const priceNum = parseFloat(String(it.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
+        const priceNum = parseFloat(String(item.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
         
         uniqueItems.push({
-          ...it,
+          ...item,
           price_num: priceNum,
           img: "/placeholder-120x90.png",
-          // Força a exibição da nota na análise
-          analysis: `Nota: ${it.score}/100. ${it.analysis.replace(/Nota:?\s?\d+\/\d+\.?\s?/i, '')}`
+          // Garante que a nota e o motivo estejam claros
+          analysis: `Nota: ${item.score}/100. ${item.analysis}`
         });
       }
-    });
+    }
 
-    // Ordenação garantida: Melhor Score no topo
+    // Ordena pela melhor nota
     uniqueItems.sort((a, b) => b.score - a.score);
 
     return res.status(200).json({ 
@@ -91,6 +89,6 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno", details: err.message });
+    return res.status(500).json({ error: "Erro interno no servidor", details: err.message });
   }
 }
