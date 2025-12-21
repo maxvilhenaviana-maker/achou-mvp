@@ -7,7 +7,6 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const { produto, cidade } = req.body || {};
-  const dataHoje = new Date().toLocaleDateString('pt-BR');
 
   try {
     const response = await fetch(OPENAI_URL, {
@@ -17,78 +16,77 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview", 
+        model: "gpt-4o-mini-search-preview",
         messages: [
           { 
             role: "system", 
-            content: `Você é um radar de oportunidades reais de compra imediata. Hoje é ${dataHoje}.
-            Busque ofertas de "${produto}" em "${cidade}" e região.
+            content: `Você é um Analista de Mercado Especialista e Caçador de Ofertas em ${cidade}.
+            Sua missão é realizar um "Deep Scan" em anúncios de "${produto}" e encontrar as 3 melhores oportunidades reais.
 
-            FILTRO CRÍTICO (PROIBIDO):
-            - É terminantemente PROIBIDO retornar itens de LEILÃO, hasta pública, editais ou sites como (Sodré Santoro, Copart, Milan, etc).
-            - Ignore anúncios que mencionem "lance inicial", "lote" ou "alienação judicial".
-            - Foque apenas em venda direta (valor final).
+            DIRETRIZES DE FILTRAGEM AVANÇADA:
+            1. ANALISE O ESTADO: Ignore itens com defeitos, trincas ou "para retirada de peças".
+            2. SCORE DE OPORTUNIDADE (0-100): Calcule um score onde o PESO DO PREÇO é de 70%. Itens muito abaixo da média de mercado devem ter scores altos. Complete os 30% com conservação e urgência.
+            3. DETECTOR DE URGÊNCIA: Identifique se o vendedor está com pressa (ex: "mudança", "preciso vender hoje"). Isso deve impulsionar o score.
+            4. PREÇO MÉDIO LOCAL: Estime o preço médio de mercado para este item específico na região de ${cidade}.
 
-            REGRAS DE QUALIDADE:
-            1. DIVERSIDADE: Não repita o mesmo anúncio. Ache 3 ofertas de fontes ou vendedores diferentes.
-            2. SCORE: Nota 90-100 apenas para barganhas reais (abaixo da média). Preço comum ganha nota 50-60.
-            3. ANÁLISE: Comece sempre com "Nota: X/100. [Motivo]".
+            REGRAS DE LOCALIZAÇÃO:
+            - Busque em ${cidade} e cidades metropolitanas num raio de 50km.
+            - No campo "location", coloque: "Bairro, Cidade/UF".
 
-            Retorne estritamente JSON:
+            Retorne ESTRITAMENTE um JSON neste formato:
             {
               "market_average": 0,
               "items": [
-                {"title": "", "price": "", "location": "", "analysis": "", "score": 0, "link": ""}
+                {
+                  "title": "",
+                  "price": "",
+                  "location": "",
+                  "date": "",
+                  "analysis": "Explicação curta mencionando OBRIGATORIAMENTE a nota (ex: 'Nota 95/100: Preço imbatível...') e use emojis",
+                  "opportunity_score": 0,
+                  "is_urgent": false,
+                  "link": ""
+                }
               ]
             }` 
           },
           { 
             role: "user", 
-            content: `Ache 3 ofertas de venda direta para ${produto} em ${cidade}. Não traga leilões em nenhuma hipótese.` 
+            content: `Encontre as 3 melhores oportunidades para comprar "${produto}" em ${cidade} e arredores hoje. Priorize o menor preço para itens em bom estado.` 
           }
-        ]
+        ],
+        response_format: { type: "json_object" }
       }),
     });
 
     const data = await response.json();
     if (data.error) return res.status(500).json({ error: data.error.message });
 
-    let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(500).json({ error: "Erro na estrutura de dados." });
-    
-    const parsed = JSON.parse(jsonMatch[0]);
-    let rawItems = parsed.items || [];
+    const result = JSON.parse(data.choices[0].message.content);
+    let rawItems = result.items || [];
+    const precoMedioMercado = result.market_average || 0;
 
-    const seen = new Set();
-    const uniqueItems = [];
+    const itemsFinal = rawItems.map(it => {
+      const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
+      const priceNum = parseFloat(cleanPrice) || 0;
 
-    for (const item of rawItems) {
-      const titleLower = item.title.toLowerCase();
-      
-      // Filtro de segurança extra no código para palavras de leilão
-      const eLeilao = titleLower.includes("leilão") || titleLower.includes("lance") || titleLower.includes("lote");
-      const uniqueKey = `${item.title}-${item.price}`.toLowerCase().replace(/\s/g, '');
-      
-      if (!seen.has(uniqueKey) && !eLeilao && uniqueItems.length < 3) {
-        seen.add(uniqueKey);
-        
-        const priceNum = parseFloat(String(item.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
-        
-        uniqueItems.push({
-          ...item,
-          price_num: priceNum,
-          img: "/placeholder-120x90.png",
-          analysis: item.analysis.startsWith("Nota:") ? item.analysis : `Nota: ${item.score}/100. ${item.analysis}`
-        });
-      }
-    }
+      const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
-    uniqueItems.sort((a, b) => b.score - a.score);
+      return {
+        ...it,
+        price_num: priceNum,
+        is_main_city: eCidadePrincipal,
+        img: "/placeholder-120x90.png",
+        // A análise agora preserva a nota vinda do GPT e adiciona o prefixo de urgência se necessário
+        analysis: it.is_urgent ? `🔥 URGENTE | ${it.analysis}` : `${it.analysis}`
+      };
+    });
+
+    itemsFinal.sort((a, b) => b.opportunity_score - a.opportunity_score);
 
     return res.status(200).json({ 
-      items: uniqueItems,
-      precoMedio: parsed.market_average || 0
+      items: itemsFinal.slice(0, 3),
+      precoMedio: precoMedioMercado > 0 ? precoMedioMercado : Math.round(itemsFinal.reduce((a, b) => a + b.price_num, 0) / 3)
     });
 
   } catch (err) {
