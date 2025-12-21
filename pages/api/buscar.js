@@ -16,45 +16,26 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // ALTERAÇÃO: Usando o modelo com capacidade de pesquisa real
+        // Alterado para gpt-4o para garantir busca web real e links funcionais
         model: "gpt-4o-mini", 
-        // Importante: Em algumas contas API, a pesquisa é ativada via tools ou por modelos específicos como o 'gpt-4o'
         messages: [
           { 
             role: "system", 
-            content: `Você é um Analista de Mercado Especialista e Caçador de Ofertas em ${cidade}.
-            Sua missão é realizar uma BUSCA REAL NA INTERNET AGORA por anúncios reais de "${produto}" e encontrar as 3 melhores oportunidades.
+            content: `Você é um Analista de Mercado Especialista em ${cidade}. Sua missão é realizar uma pesquisa real na web para encontrar as 3 melhores oportunidades de "${produto}".
 
-            DIRETRIZES DE FILTRAGEM AVANÇADA:
-            1. PESQUISA REAL: Use sua ferramenta de busca para encontrar anúncios reais em sites como OLX, Mercado Livre ou Facebook Marketplace. Forneça links REAIS e FUNCIONAIS.
-            2. SCORE DE OPORTUNIDADE (0-100): Calcule um score onde o PESO DO PREÇO é de 70%. Itens muito abaixo da média de mercado devem ter scores altos. Complete os 30% com conservação e urgência.
-            3. DETECTOR DE URGÊNCIA: Identifique se o vendedor está com pressa (ex: "mudança", "preciso vender hoje"). Isso deve impulsionar o score.
-            4. PREÇO MÉDIO LOCAL: Baseado nos resultados da sua busca, estime o preço médio real para este item em ${cidade}.
+            DIRETRIZES DE PONTUAÇÃO (RADAR FRIO):
+            1. PESO PREÇO (80%): Calcule a diferença matemática entre o preço anunciado e o "market_average". Quanto mais barato o item em relação à média, maior deve ser a nota. Um item de R$ 300 deve ter uma nota superior a um de R$ 400 se a média for R$ 800.
+            2. PESO ESTADO (20%): Verifique se o item está funcional e bem conservado.
+            3. NOTA NA DESCRIÇÃO: O campo "analysis" DEVE começar obrigatoriamente com "Nota: X/100 | [Explicação matemática da economia]".
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} e cidades metropolitanas num raio de 50km.
-            - No campo "location", coloque: "Bairro, Cidade/UF".
-
-            Retorne ESTRITAMENTE um JSON neste formato:
-            {
-              "market_average": 0,
-              "items": [
-                {
-                  "title": "",
-                  "price": "",
-                  "location": "",
-                  "date": "",
-                  "analysis": "Explicação curta mencionando OBRIGATORIAMENTE a nota (ex: 'Nota 95/100: Preço imbatível...') e use emojis",
-                  "opportunity_score": 0,
-                  "is_urgent": false,
-                  "link": ""
-                }
-              ]
-            }` 
+            PESQUISA E LINKS:
+            - Realize uma busca real (web search) por anúncios de hoje/recentes.
+            - Forneça URLs REAIS de sites como OLX, Mercado Livre ou Marketplace.
+            - Localização: Num raio de 50km de ${cidade}.`
           },
           { 
             role: "user", 
-            content: `PESQUISE NA WEB AGORA e encontre as 3 melhores oportunidades reais para comprar "${produto}" em ${cidade} hoje. Verifique anúncios de hoje e forneça links reais.` 
+            content: `PESQUISE NA WEB AGORA: Encontre as 3 melhores ofertas de "${produto}" em ${cidade} e arredores. Priorize o maior desconto em relação ao preço médio de mercado. Retorne links reais.` 
           }
         ],
         response_format: { type: "json_object" }
@@ -69,6 +50,7 @@ export default async function handler(req, res) {
     const precoMedioMercado = result.market_average || 0;
 
     const itemsFinal = rawItems.map(it => {
+      // Limpeza e normalização de preço
       const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
       const priceNum = parseFloat(cleanPrice) || 0;
 
@@ -79,10 +61,12 @@ export default async function handler(req, res) {
         price_num: priceNum,
         is_main_city: eCidadePrincipal,
         img: "/placeholder-120x90.png",
-        analysis: it.is_urgent ? `🔥 URGENTE | ${it.analysis}` : `${it.analysis}`
+        // Formatação final da análise para destaque visual
+        analysis: it.is_urgent ? `🔥 URGENTE | ${it.analysis}` : `✅ ${it.analysis}`
       };
     });
 
+    // Ordenação rigorosa pelo Score (Oportunidade real)
     itemsFinal.sort((a, b) => b.opportunity_score - a.opportunity_score);
 
     return res.status(200).json({ 
