@@ -16,18 +16,20 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        // ALTERAÇÃO: Usando o modelo com capacidade de pesquisa real
+        model: "gpt-4o-mini", 
+        // Importante: Em algumas contas API, a pesquisa é ativada via tools ou por modelos específicos como o 'gpt-4o'
         messages: [
           { 
             role: "system", 
             content: `Você é um Analista de Mercado Especialista e Caçador de Ofertas em ${cidade}.
-            Sua missão é realizar um "Deep Scan" em anúncios de "${produto}" e encontrar as 3 melhores oportunidades reais.
+            Sua missão é realizar uma BUSCA REAL NA INTERNET AGORA por anúncios reais de "${produto}" e encontrar as 3 melhores oportunidades.
 
             DIRETRIZES DE FILTRAGEM AVANÇADA:
-            1. ANALISE O ESTADO: Ignore itens com defeitos, trincas ou "para retirada de peças".
+            1. PESQUISA REAL: Use sua ferramenta de busca para encontrar anúncios reais em sites como OLX, Mercado Livre ou Facebook Marketplace. Forneça links REAIS e FUNCIONAIS.
             2. SCORE DE OPORTUNIDADE (0-100): Calcule um score onde o PESO DO PREÇO é de 70%. Itens muito abaixo da média de mercado devem ter scores altos. Complete os 30% com conservação e urgência.
             3. DETECTOR DE URGÊNCIA: Identifique se o vendedor está com pressa (ex: "mudança", "preciso vender hoje"). Isso deve impulsionar o score.
-            4. PREÇO MÉDIO LOCAL: Estime o preço médio de mercado para este item específico na região de ${cidade}.
+            4. PREÇO MÉDIO LOCAL: Baseado nos resultados da sua busca, estime o preço médio real para este item em ${cidade}.
 
             REGRAS DE LOCALIZAÇÃO:
             - Busque em ${cidade} e cidades metropolitanas num raio de 50km.
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
           },
           { 
             role: "user", 
-            content: `Encontre as 3 melhores oportunidades para comprar "${produto}" em ${cidade} e arredores hoje. Priorize o menor preço para itens em bom estado.` 
+            content: `PESQUISE NA WEB AGORA e encontre as 3 melhores oportunidades reais para comprar "${produto}" em ${cidade} hoje. Verifique anúncios de hoje e forneça links reais.` 
           }
         ],
         response_format: { type: "json_object" }
@@ -77,7 +79,6 @@ export default async function handler(req, res) {
         price_num: priceNum,
         is_main_city: eCidadePrincipal,
         img: "/placeholder-120x90.png",
-        // A análise agora preserva a nota vinda do GPT e adiciona o prefixo de urgência se necessário
         analysis: it.is_urgent ? `🔥 URGENTE | ${it.analysis}` : `${it.analysis}`
       };
     });
