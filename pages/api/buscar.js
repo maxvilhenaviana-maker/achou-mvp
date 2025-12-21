@@ -21,17 +21,18 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um radar de oportunidades de ouro (barganhas). Hoje é ${dataHoje}.
-            Busque anúncios de "${produto}" em "${cidade}" e arredores.
+            content: `Você é um radar de oportunidades reais de compra imediata. Hoje é ${dataHoje}.
+            Busque ofertas de "${produto}" em "${cidade}" e região.
 
-            REGRAS DE OURO:
-            1. DIVERSIDADE: É proibido retornar o mesmo anúncio ou itens com preços iguais. Ache 3 ofertas DISTINTAS.
-            2. FOCO EM DESAPEGO: Priorize itens usados/seminovos (OLX, Facebook, Mercado Livre) onde o preço é muito abaixo do novo.
-            3. SCORE REALISTA: 
-               - Nota 90-100: Apenas para preços realmente abaixo da média.
-               - Nota 50: Preço normal de mercado.
-               - Se o preço for ruim, dê nota baixa.
-            4. LINKS: Traga apenas links funcionais e reais.
+            FILTRO CRÍTICO (PROIBIDO):
+            - É terminantemente PROIBIDO retornar itens de LEILÃO, hasta pública, editais ou sites como (Sodré Santoro, Copart, Milan, etc).
+            - Ignore anúncios que mencionem "lance inicial", "lote" ou "alienação judicial".
+            - Foque apenas em venda direta (valor final).
+
+            REGRAS DE QUALIDADE:
+            1. DIVERSIDADE: Não repita o mesmo anúncio. Ache 3 ofertas de fontes ou vendedores diferentes.
+            2. SCORE: Nota 90-100 apenas para barganhas reais (abaixo da média). Preço comum ganha nota 50-60.
+            3. ANÁLISE: Comece sempre com "Nota: X/100. [Motivo]".
 
             Retorne estritamente JSON:
             {
@@ -41,9 +42,11 @@ export default async function handler(req, res) {
               ]
             }` 
           },
-          { role: "user", content: `Quero 3 oportunidades reais e diferentes de ${produto} em ${cidade}. Ignore preços de lojas grandes se estiverem caros.` }
-        ],
-        // 'temperature' removida para evitar erro de incompatibilidade com este modelo
+          { 
+            role: "user", 
+            content: `Ache 3 ofertas de venda direta para ${produto} em ${cidade}. Não traga leilões em nenhuma hipótese.` 
+          }
+        ]
       }),
     });
 
@@ -52,20 +55,22 @@ export default async function handler(req, res) {
 
     let content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(500).json({ error: "Falha na estrutura de dados da IA." });
+    if (!jsonMatch) return res.status(500).json({ error: "Erro na estrutura de dados." });
     
     const parsed = JSON.parse(jsonMatch[0]);
     let rawItems = parsed.items || [];
 
-    // --- FILTRO ANTIDUPLICIDADE NO CÓDIGO ---
     const seen = new Set();
     const uniqueItems = [];
 
     for (const item of rawItems) {
-      // Cria uma chave única baseada no título e preço para evitar clones
+      const titleLower = item.title.toLowerCase();
+      
+      // Filtro de segurança extra no código para palavras de leilão
+      const eLeilao = titleLower.includes("leilão") || titleLower.includes("lance") || titleLower.includes("lote");
       const uniqueKey = `${item.title}-${item.price}`.toLowerCase().replace(/\s/g, '');
       
-      if (!seen.has(uniqueKey) && uniqueItems.length < 3) {
+      if (!seen.has(uniqueKey) && !eLeilao && uniqueItems.length < 3) {
         seen.add(uniqueKey);
         
         const priceNum = parseFloat(String(item.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
@@ -74,13 +79,11 @@ export default async function handler(req, res) {
           ...item,
           price_num: priceNum,
           img: "/placeholder-120x90.png",
-          // Garante que a nota e o motivo estejam claros
-          analysis: `Nota: ${item.score}/100. ${item.analysis}`
+          analysis: item.analysis.startsWith("Nota:") ? item.analysis : `Nota: ${item.score}/100. ${item.analysis}`
         });
       }
     }
 
-    // Ordena pela melhor nota
     uniqueItems.sort((a, b) => b.score - a.score);
 
     return res.status(200).json({ 
@@ -89,6 +92,6 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno no servidor", details: err.message });
+    return res.status(500).json({ error: "Erro interno", details: err.message });
   }
 }
