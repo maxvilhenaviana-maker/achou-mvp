@@ -16,62 +16,79 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // Alterado para gpt-4o para garantir busca web real e links funcionais
-        model: "gpt-4o-mini", 
+        model: "gpt-4o-mini-search-preview", 
         messages: [
           { 
             role: "system", 
-            content: `Você é um Analista de Mercado Especialista em ${cidade}. Sua missão é realizar uma pesquisa real na web para encontrar as 3 melhores oportunidades de "${produto}".
+            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
+            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
 
-            DIRETRIZES DE PONTUAÇÃO (RADAR FRIO):
-            1. PESO PREÇO (80%): Calcule a diferença matemática entre o preço anunciado e o "market_average". Quanto mais barato o item em relação à média, maior deve ser a nota. Um item de R$ 300 deve ter uma nota superior a um de R$ 400 se a média for R$ 800.
-            2. PESO ESTADO (20%): Verifique se o item está funcional e bem conservado.
-            3. NOTA NA DESCRIÇÃO: O campo "analysis" DEVE começar obrigatoriamente com "Nota: X/100 | [Explicação matemática da economia]".
+            REGRAS DE LOCALIZAÇÃO:
+            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana (ex: se for BH, busque em Contagem, Betim, Nova Lima, etc).
+            - No campo "location", escreva sempre o nome da cidade e o bairro.
 
-            PESQUISA E LINKS:
-            - Realize uma busca real (web search) por anúncios de hoje/recentes.
-            - Forneça URLs REAIS de sites como OLX, Mercado Livre ou Marketplace.
-            - Localização: Num raio de 50km de ${cidade}.`
+            CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
+            - Itens com furo, ferrugem, amassados ou defeitos técnicos.
+            - Anúncios de "conserto", "leilão", "retirada de peças" ou "sucata".
+
+            CRITÉRIOS DE SELEÇÃO E DESEMPATE:
+            1. Prioridade total para o MENOR PREÇO em bom estado.
+            2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
+            3. Se o preço e a cidade forem iguais, priorize o mais recente.
+
+            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { 
-            role: "user", 
-            content: `PESQUISE NA WEB AGORA: Encontre as 3 melhores ofertas de "${produto}" em ${cidade} e arredores. Priorize o maior desconto em relação ao preço médio de mercado. Retorne links reais.` 
-          }
+          { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem ou de leilão.` }
         ],
-        response_format: { type: "json_object" }
       }),
     });
 
     const data = await response.json();
     if (data.error) return res.status(500).json({ error: data.error.message });
 
-    const result = JSON.parse(data.choices[0].message.content);
-    let rawItems = result.items || [];
-    const precoMedioMercado = result.market_average || 0;
+    let content = data.choices[0].message.content;
+    const jsonMatch = content.match(/\{.*\}/s);
+    let itemsFinal = [];
+    
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      let rawItems = parsed.items || [];
 
-    const itemsFinal = rawItems.map(it => {
-      // Limpeza e normalização de preço
-      const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
-      const priceNum = parseFloat(cleanPrice) || 0;
+      itemsFinal = rawItems.map(it => {
+        // 1. Limpeza de Preço
+        const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
+        const priceNum = parseFloat(cleanPrice) || 999999;
 
-      const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
+        // 2. Identifica se o item é da cidade principal para o desempate
+        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
-      return {
-        ...it,
-        price_num: priceNum,
-        is_main_city: eCidadePrincipal,
-        img: "/placeholder-120x90.png",
-        // Formatação final da análise para destaque visual
-        analysis: it.is_urgent ? `🔥 URGENTE | ${it.analysis}` : `✅ ${it.analysis}`
-      };
-    });
+        return {
+          ...it,
+          price_num: priceNum,
+          is_main_city: eCidadePrincipal,
+          img: "/placeholder-120x90.png",
+          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
+        };
+      });
 
-    // Ordenação rigorosa pelo Score (Oportunidade real)
-    itemsFinal.sort((a, b) => b.opportunity_score - a.opportunity_score);
+      // --- LÓGICA DE ORDENAÇÃO PADRÃO (SEU CÓDIGO) ---
+      itemsFinal.sort((a, b) => {
+        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
+        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
+        return 0;
+      });
+    }
+
+    const finalItems = itemsFinal.slice(0, 3);
+
+    // --- CÁLCULO DO PREÇO MÉDIO (Lógica Interna JS) ---
+    // Fazemos a média apenas dos resultados reais retornados pela IA
+    const soma = finalItems.reduce((acc, curr) => acc + (curr.price_num < 999999 ? curr.price_num : 0), 0);
+    const media = finalItems.length > 0 ? Math.round(soma / finalItems.length) : 0;
 
     return res.status(200).json({ 
-      items: itemsFinal.slice(0, 3),
-      precoMedio: precoMedioMercado > 0 ? precoMedioMercado : Math.round(itemsFinal.reduce((a, b) => a + b.price_num, 0) / 3)
+      items: finalItems,
+      precoMedio: media // Adicionado para o seu index.js
     });
 
   } catch (err) {
