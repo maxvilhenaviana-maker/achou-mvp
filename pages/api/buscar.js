@@ -16,24 +16,24 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", // Use o modelo de sua preferência (o -search é excelente para web)
+        // IMPORTANTE: Use modelos que suportam pesquisa (como gpt-4o com tools ou similares)
+        model: "gpt-4o", 
         messages: [
           { 
             role: "system", 
-            content: `Você é um Analista de Mercado Especialista e Caçador de Ofertas em ${cidade}.
-            Sua missão é realizar um "Deep Scan" em anúncios de "${produto}" e encontrar as 3 melhores oportunidades reais.
+            content: `Você é um buscador em tempo real. Sua missão é navegar na web para encontrar anúncios REAIS de "${produto}" em "${cidade}".
 
-            DIRETRIZES DE FILTRAGEM AVANÇADA:
-            1. ANALISE O ESTADO: Ignore itens com defeitos, trincas ou "para retirada de peças".
-            2. SCORE DE OPORTUNIDADE (0-100): Calcule um score baseado no preço (abaixo da média), localização (facilidade de busca) e conservação.
-            3. DETECTOR DE URGÊNCIA: Identifique se o vendedor está com pressa (ex: termos como "mudança", "preciso vender hoje", "estudo proposta"). Isso aumenta o score.
-            4. PREÇO MÉDIO LOCAL: Estime o preço médio de mercado para este item específico na região de ${cidade}.
+            CRITÉRIOS DE SCORE (Peso total 100):
+            - Preço (70 pontos): Quanto mais abaixo da média de mercado, maior a pontuação.
+            - Estado (20 pontos): Itens novos ou impecáveis ganham mais.
+            - Localização (10 pontos): Itens na cidade principal ganham mais.
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} e cidades metropolitanas num raio de 50km.
-            - No campo "location", coloque: "Bairro, Cidade/UF".
+            REGRAS OBRIGATÓRIAS:
+            1. LINKS: Retorne apenas links REAIS e ativos (Mercado Livre, OLX, Amazon, etc). Nunca invente uma URL.
+            2. PREÇOS: Use valores atualizados da data de hoje. 
+            3. ANÁLISE: O campo "analysis" deve começar com a nota, ex: "Nota: 95/100. Motivo: Preço 20% abaixo da média local e item em excelente estado."
 
-            Retorne ESTRITAMENTE um JSON neste formato:
+            Retorne um JSON:
             {
               "market_average": 0,
               "items": [
@@ -41,10 +41,8 @@ export default async function handler(req, res) {
                   "title": "",
                   "price": "",
                   "location": "",
-                  "date": "",
-                  "analysis": "Explicação curta do porquê é uma das 3 melhores (use emojis)",
-                  "opportunity_score": 0,
-                  "is_urgent": false,
+                  "analysis": "",
+                  "score": 0,
                   "link": ""
                 }
               ]
@@ -52,10 +50,11 @@ export default async function handler(req, res) {
           },
           { 
             role: "user", 
-            content: `Encontre as 3 melhores oportunidades para comprar "${produto}" em ${cidade} e arredores hoje. Verifique anúncios recentes.` 
+            content: `PESQUISE AGORA na internet anúncios de ${produto} em ${cidade} e região. Traga as 3 melhores ofertas de ouro com links reais.` 
           }
         ],
-        response_format: { type: "json_object" } // Garante que a resposta venha como JSON puro
+        response_format: { type: "json_object" },
+        temperature: 0.2 // Baixa temperatura para evitar invenções (alucinações)
       }),
     });
 
@@ -63,32 +62,21 @@ export default async function handler(req, res) {
     if (data.error) return res.status(500).json({ error: data.error.message });
 
     const result = JSON.parse(data.choices[0].message.content);
-    let rawItems = result.items || [];
-    const precoMedioMercado = result.market_average || 0;
+    let itemsFinal = result.items || [];
 
-    const itemsFinal = rawItems.map(it => {
-      // Limpeza de Preço para cálculos
-      const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
-      const priceNum = parseFloat(cleanPrice) || 0;
+    // Tratamento e limpeza de dados
+    itemsFinal = itemsFinal.map(it => ({
+      ...it,
+      price_num: parseFloat(String(it.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
+      img: "/placeholder-120x90.png"
+    }));
 
-      // Identifica cidade principal para desempate visual
-      const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
-
-      return {
-        ...it,
-        price_num: priceNum,
-        is_main_city: eCidadePrincipal,
-        img: "/placeholder-120x90.png", // Em produção, você tentaria extrair a URL da imagem real
-        analysis: it.is_urgent ? `🔥 URGENTE: ${it.analysis}` : `✅ ${it.analysis}`
-      };
-    });
-
-    // Ordenação Final: Score de Oportunidade (do maior para o menor)
-    itemsFinal.sort((a, b) => b.opportunity_score - a.opportunity_score);
+    // Garantir ordenação por Score Decrescente (Melhor oferta primeiro)
+    itemsFinal.sort((a, b) => b.score - a.score);
 
     return res.status(200).json({ 
       items: itemsFinal.slice(0, 3),
-      precoMedio: precoMedioMercado > 0 ? precoMedioMercado : Math.round(itemsFinal.reduce((a, b) => a + b.price_num, 0) / 3)
+      precoMedio: result.market_average || 0
     });
 
   } catch (err) {
