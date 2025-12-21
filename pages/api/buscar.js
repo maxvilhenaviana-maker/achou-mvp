@@ -20,20 +20,21 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um Analista de Mercado especializado em encontrar ofertas reais.
-            Sua tarefa é buscar na web anúncios de "${produto}" em "${cidade}" e região.
+            content: `Você é um avaliador rigoroso. Sua missão é encontrar 3 anúncios REAIS e DIFERENTES de "${produto}" em "${cidade}".
 
-            CRITÉRIOS DE SCORE (0 a 100):
-            - PREÇO (Peso 70%): Quanto mais barato em relação à média local, maior a nota.
-            - QUALIDADE/ESTADO (Peso 30%): Itens novos ou conservados ganham mais pontos.
+            PROIBIÇÕES CRÍTICAS:
+            - Proibido retornar itens repetidos ou o mesmo anúncio 3 vezes.
+            - Proibido inventar links. Se não achar 3, retorne apenas o que achou.
+            - Proibido dar nota alta para preços comuns. 
 
-            REGRAS DE RESPOSTA:
-            1. Encontre 3 oportunidades reais com LINKS ativos.
-            2. O campo "analysis" DEVE começar com a pontuação e a explicação, ex: "Nota: 92/100. Motivo: Preço excelente e vendedor com boas fotos."
-            3. Identifique o preço médio de mercado para o item na região.
-            4. Se encontrar termos como "mudança" ou "urgente", aumente o score e destaque na análise.
+            LÓGICA DE SCORE (0-100):
+            - Preço < Média: Score 80-100 (Oportunidade de Ouro).
+            - Preço = Média: Score 50-60 (Preço justo, não é oportunidade).
+            - Preço > Média: Score abaixo de 40 (Fuja disso).
 
-            RETORNE ESTRITAMENTE UM JSON:
+            A "analysis" deve ser honesta. Se o preço for ruim, diga: "Nota X/100. Preço acima da média local, não recomendo."
+
+            Retorne estritamente JSON:
             {
               "market_average": 0,
               "items": [
@@ -41,8 +42,12 @@ export default async function handler(req, res) {
               ]
             }` 
           },
-          { role: "user", content: `Ache os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana agora.` }
+          { 
+            role: "user", 
+            content: `Encontre 3 ofertas distintas para ${produto} em ${cidade}. Compare preços de fontes diferentes. Não repita o mesmo item.` 
+          }
         ],
+        temperature: 0.1 // Reduzido drasticamente para evitar "criatividade" e repetições
       }),
     });
 
@@ -50,35 +55,39 @@ export default async function handler(req, res) {
     if (data.error) return res.status(500).json({ error: data.error.message });
 
     let content = data.choices[0].message.content;
-    
-    // Extração robusta do JSON caso o modelo retorne markdown
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return res.status(500).json({ error: "A IA não retornou um formato válido." });
+    if (!jsonMatch) return res.status(500).json({ error: "Erro na resposta da IA." });
     
     const parsed = JSON.parse(jsonMatch[0]);
-    const marketAverage = parsed.market_average || 0;
     let rawItems = parsed.items || [];
 
-    const itemsFinal = rawItems.map(it => {
-      // Limpeza de Preço para garantir ordenação numérica
-      const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
-      const priceNum = parseFloat(cleanPrice) || 0;
+    // Filtro de Segurança Anti-Duplicidade no Código
+    const uniqueItems = [];
+    const titles = new Set();
 
-      return {
-        ...it,
-        price_num: priceNum,
-        img: "/placeholder-120x90.png",
-        // Garante que a nota esteja visível na análise caso a IA esqueça
-        analysis: it.analysis.includes("Nota:") ? it.analysis : `Nota: ${it.score}/100. ${it.analysis}`
-      };
+    rawItems.forEach(it => {
+      const cleanTitle = it.title.toLowerCase().trim();
+      if (!titles.has(cleanTitle) && uniqueItems.length < 3) {
+        titles.add(cleanTitle);
+        
+        const priceNum = parseFloat(String(it.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
+        
+        uniqueItems.push({
+          ...it,
+          price_num: priceNum,
+          img: "/placeholder-120x90.png",
+          // Força a exibição da nota na análise
+          analysis: `Nota: ${it.score}/100. ${it.analysis.replace(/Nota:?\s?\d+\/\d+\.?\s?/i, '')}`
+        });
+      }
     });
 
-    // ORDENAÇÃO: Garante que o maior Score (Melhor Oferta) fique no topo (index 0)
-    itemsFinal.sort((a, b) => (b.score || 0) - (a.score || 0));
+    // Ordenação garantida: Melhor Score no topo
+    uniqueItems.sort((a, b) => b.score - a.score);
 
     return res.status(200).json({ 
-      items: itemsFinal.slice(0, 3),
-      precoMedio: marketAverage
+      items: uniqueItems,
+      precoMedio: parsed.market_average || 0
     });
 
   } catch (err) {
