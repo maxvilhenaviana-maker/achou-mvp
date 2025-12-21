@@ -16,67 +16,69 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // IMPORTANTE: Use modelos que suportam pesquisa (como gpt-4o com tools ou similares)
-        model: "gpt-4o", 
+        model: "gpt-4o-mini-search-preview", 
         messages: [
           { 
             role: "system", 
-            content: `Você é um buscador em tempo real. Sua missão é navegar na web para encontrar anúncios REAIS de "${produto}" em "${cidade}".
+            content: `Você é um Analista de Mercado especializado em encontrar ofertas reais.
+            Sua tarefa é buscar na web anúncios de "${produto}" em "${cidade}" e região.
 
-            CRITÉRIOS DE SCORE (Peso total 100):
-            - Preço (70 pontos): Quanto mais abaixo da média de mercado, maior a pontuação.
-            - Estado (20 pontos): Itens novos ou impecáveis ganham mais.
-            - Localização (10 pontos): Itens na cidade principal ganham mais.
+            CRITÉRIOS DE SCORE (0 a 100):
+            - PREÇO (Peso 70%): Quanto mais barato em relação à média local, maior a nota.
+            - QUALIDADE/ESTADO (Peso 30%): Itens novos ou conservados ganham mais pontos.
 
-            REGRAS OBRIGATÓRIAS:
-            1. LINKS: Retorne apenas links REAIS e ativos (Mercado Livre, OLX, Amazon, etc). Nunca invente uma URL.
-            2. PREÇOS: Use valores atualizados da data de hoje. 
-            3. ANÁLISE: O campo "analysis" deve começar com a nota, ex: "Nota: 95/100. Motivo: Preço 20% abaixo da média local e item em excelente estado."
+            REGRAS DE RESPOSTA:
+            1. Encontre 3 oportunidades reais com LINKS ativos.
+            2. O campo "analysis" DEVE começar com a pontuação e a explicação, ex: "Nota: 92/100. Motivo: Preço excelente e vendedor com boas fotos."
+            3. Identifique o preço médio de mercado para o item na região.
+            4. Se encontrar termos como "mudança" ou "urgente", aumente o score e destaque na análise.
 
-            Retorne um JSON:
+            RETORNE ESTRITAMENTE UM JSON:
             {
               "market_average": 0,
               "items": [
-                {
-                  "title": "",
-                  "price": "",
-                  "location": "",
-                  "analysis": "",
-                  "score": 0,
-                  "link": ""
-                }
+                {"title": "", "price": "", "location": "", "analysis": "", "score": 0, "link": ""}
               ]
             }` 
           },
-          { 
-            role: "user", 
-            content: `PESQUISE AGORA na internet anúncios de ${produto} em ${cidade} e região. Traga as 3 melhores ofertas de ouro com links reais.` 
-          }
+          { role: "user", content: `Ache os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana agora.` }
         ],
-        response_format: { type: "json_object" },
-        temperature: 0.2 // Baixa temperatura para evitar invenções (alucinações)
       }),
     });
 
     const data = await response.json();
     if (data.error) return res.status(500).json({ error: data.error.message });
 
-    const result = JSON.parse(data.choices[0].message.content);
-    let itemsFinal = result.items || [];
+    let content = data.choices[0].message.content;
+    
+    // Extração robusta do JSON caso o modelo retorne markdown
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(500).json({ error: "A IA não retornou um formato válido." });
+    
+    const parsed = JSON.parse(jsonMatch[0]);
+    const marketAverage = parsed.market_average || 0;
+    let rawItems = parsed.items || [];
 
-    // Tratamento e limpeza de dados
-    itemsFinal = itemsFinal.map(it => ({
-      ...it,
-      price_num: parseFloat(String(it.price).replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
-      img: "/placeholder-120x90.png"
-    }));
+    const itemsFinal = rawItems.map(it => {
+      // Limpeza de Preço para garantir ordenação numérica
+      const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
+      const priceNum = parseFloat(cleanPrice) || 0;
 
-    // Garantir ordenação por Score Decrescente (Melhor oferta primeiro)
-    itemsFinal.sort((a, b) => b.score - a.score);
+      return {
+        ...it,
+        price_num: priceNum,
+        img: "/placeholder-120x90.png",
+        // Garante que a nota esteja visível na análise caso a IA esqueça
+        analysis: it.analysis.includes("Nota:") ? it.analysis : `Nota: ${it.score}/100. ${it.analysis}`
+      };
+    });
+
+    // ORDENAÇÃO: Garante que o maior Score (Melhor Oferta) fique no topo (index 0)
+    itemsFinal.sort((a, b) => (b.score || 0) - (a.score || 0));
 
     return res.status(200).json({ 
       items: itemsFinal.slice(0, 3),
-      precoMedio: result.market_average || 0
+      precoMedio: marketAverage
     });
 
   } catch (err) {
