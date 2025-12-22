@@ -36,7 +36,11 @@ export default async function handler(req, res) {
             2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
             3. Se o preço e a cidade forem iguais, priorize o mais recente.
 
-            Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
+            PESQUISA DE MERCADO:
+            - Analise o preço médio praticado para "${produto}" em toda a região de ${cidade} e arredores, considerando diversos anúncios (não apenas os 3 selecionados).
+            - Forneça esse valor médio regional no campo "market_average".
+
+            Retorne estritamente um JSON: {"market_average": number, "items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
           { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem ou de leilão.` }
         ],
@@ -49,10 +53,12 @@ export default async function handler(req, res) {
     let content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{.*\}/s);
     let itemsFinal = [];
+    let mediaRegional = 0;
     
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       let rawItems = parsed.items || [];
+      mediaRegional = parsed.market_average || 0;
 
       itemsFinal = rawItems.map(it => {
         // 1. Limpeza de Preço
@@ -81,14 +87,13 @@ export default async function handler(req, res) {
 
     const finalItems = itemsFinal.slice(0, 3);
 
-    // --- CÁLCULO DO PREÇO MÉDIO (Lógica Interna JS) ---
-    // Fazemos a média apenas dos resultados reais retornados pela IA
-    const soma = finalItems.reduce((acc, curr) => acc + (curr.price_num < 999999 ? curr.price_num : 0), 0);
-    const media = finalItems.length > 0 ? Math.round(soma / finalItems.length) : 0;
+    // --- CÁLCULO DO PREÇO MÉDIO (Alterado para refletir a Região) ---
+    // Agora utilizamos a média regional fornecida pela análise da IA
+    const media = Math.round(mediaRegional);
 
     return res.status(200).json({ 
       items: finalItems,
-      precoMedio: media // Adicionado para o seu index.js
+      precoMedio: media // Agora expressa a média da região conforme solicitado
     });
 
   } catch (err) {
