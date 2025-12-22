@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ✅ CORREÇÃO AQUI — compatível com o frontend atual
+    // Compatível com o frontend atual
     const { produto, cidade } = req.body;
 
     if (!produto || !cidade) {
@@ -22,9 +22,6 @@ export default async function handler(req, res) {
     const termo = produto;
     const localizacao = cidade;
 
-    /**
-     * PROMPT
-     */
     const prompt = `
 Você é um especialista em análise de mercado local.
 
@@ -48,9 +45,6 @@ Formato de saída (JSON válido):
 }
 `;
 
-    /**
-     * CHAMADA AO MODELO
-     */
     const completion = await client.chat.completions.create({
       model: "gpt-5-mini",
       messages: [
@@ -63,7 +57,7 @@ Formato de saída (JSON válido):
           content: prompt,
         },
       ],
-      temperature: 0.4,
+      // ⚠️ NÃO usar temperature com gpt-5-mini
     });
 
     const raw = completion.choices[0].message.content;
