@@ -10,74 +10,26 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Compatível com o frontend atual
-    const { produto, cidade } = req.body;
+    const { produto, cidade } = req.body || {};
 
     if (!produto || !cidade) {
       return res.status(400).json({
-        error: "Parâmetros obrigatórios ausentes (produto ou cidade)",
+        error: "Parâmetros obrigatórios ausentes (termo ou localizacao)",
       });
     }
 
-    const termo = produto;
-    const localizacao = cidade;
-
+    /**
+     * Prompt focado em gerar oportunidades,
+     * mas depois adaptamos ao contrato do frontend
+     */
     const prompt = `
-Você é um especialista em análise de mercado local.
+Você é um analista de mercado especializado em encontrar boas oportunidades locais.
 
-Produto: ${termo}
-Região: ${localizacao}
+Produto: ${produto}
+Região: ${cidade}
 
 Tarefas:
 1. Estimar o preço médio praticado na região.
-2. Apontar se o preço tende a estar acima, abaixo ou na média do mercado.
-3. Indicar 3 boas oportunidades de compra.
-4. Gerar uma análise curta, clara e confiável.
-
-Formato de saída (JSON válido):
-{
-  "preco_medio": number,
-  "tendencia": "acima" | "abaixo" | "na média",
-  "melhores_oportunidades": [
-    { "descricao": string }
-  ],
-  "analise": string
-}
-`;
-
-    const completion = await client.chat.completions.create({
-      model: "gpt-5-mini",
-      messages: [
-        {
-          role: "system",
-          content: "Responda exclusivamente em JSON válido.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      // ⚠️ NÃO usar temperature com gpt-5-mini
-    });
-
-    const raw = completion.choices[0].message.content;
-
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      return res.status(500).json({
-        error: "Erro ao interpretar resposta do modelo",
-        raw_response: raw,
-      });
-    }
-
-    return res.status(200).json(parsed);
-  } catch (e) {
-    console.error("Erro na API buscar:", e);
-    return res.status(500).json({
-      error: "Erro interno",
-      details: e.message,
-    });
-  }
-}
+2. Identificar boas oportunidades de compra abaixo ou próximas da média.
+3. Para cada oportunidade, descreva:
+   - Título d
