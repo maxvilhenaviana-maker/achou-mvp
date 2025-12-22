@@ -27,9 +27,11 @@ export default async function handler(req, res) {
             - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana (ex: se for BH, busque em Contagem, Betim, Nova Lima, etc).
             - No campo "location", escreva sempre o nome da cidade e o bairro.
 
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
+            CRITÉRIOS DE EXCLUSÃO (PROIBIDO - TOLERÂNCIA ZERO):
             - Itens com furo, ferrugem, amassados ou defeitos técnicos.
-            - Anúncios de "conserto", "leilão", "retirada de peças" ou "sucata".
+            - PROIBIDO: Itens originados de leilão, editais ou sites de leiloeiros (ex: Sodré Santoro, Copart, Milan, Freitas, etc).
+            - PROIBIDO: Pesquisar ou trazer links de sites que contenham "leilao", "bid", "auction" ou "soldo" no domínio ou título.
+            - Anúncios de "conserto", "retirada de peças" ou "sucata".
 
             CRITÉRIOS DE SELEÇÃO E DESEMPATE:
             1. Prioridade total para o MENOR PREÇO em bom estado.
@@ -42,7 +44,7 @@ export default async function handler(req, res) {
 
             Retorne estritamente um JSON: {"market_average": number, "items": [{"title", "price", "location", "date", "analysis", "link"}]}` 
           },
-          { role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem ou de leilão.` }
+          { role: "user", content: `Encontre os 3 melhores anúncios reais de ${produto} em ${cidade} e região metropolitana. É terminantemente proibido trazer qualquer item de leilão ou de sites de leiloeiros oficiais/privados.` }
         ],
       }),
     });
