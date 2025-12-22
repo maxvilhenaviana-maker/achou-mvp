@@ -3,7 +3,7 @@ export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 async function callOpenAI(apiKey, model, messages) {
-  const response = await fetch(OPENAI_URL, {
+  const r = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -11,8 +11,13 @@ async function callOpenAI(apiKey, model, messages) {
     },
     body: JSON.stringify({ model, messages }),
   });
+  return r.json();
+}
 
-  return response.json();
+function extractJSON(text) {
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  return JSON.parse(m[0]);
 }
 
 export default async function handler(req, res) {
@@ -24,107 +29,93 @@ export default async function handler(req, res) {
   const { produto, cidade } = req.body || {};
 
   try {
-    /* =====================================================
-       🔹 CAMADA 1 — COLETA, LIMPEZA E TRIAGEM (gpt-5-nano)
-    ===================================================== */
-    const layer1 = await callOpenAI(apiKey, "gpt-5-nano", [
+    /* CAMADA 1 */
+    const l1 = await callOpenAI(apiKey, "gpt-5-nano", [
       {
         role: "system",
-        content: `
-Você coleta anúncios de "${produto}" na região de ${cidade}.
-Normalize e limpe os dados.
-
-Tarefas:
-- Normalizar título
-- Extrair preço, estado e localização
-- Detectar duplicidade
-- Classificar qualidade: bom | medio | suspeito
-
-IMPORTANTE:
-Classifique como "suspeito" APENAS se houver:
-- menção explícita a defeito
-- preço extremamente fora do mercado
-- pedido de sinal, PIX antecipado ou contato externo
-
-REGRAS:
-- Retorne APENAS JSON puro
-- Não use markdown
-- Não escreva texto fora do JSON
-
-Formato:
-{
-  "items": [
-    {
-      "title",
-      "price",
-      "location",
-      "date",
-      "link",
-      "full_text",
-      "quality"
-    }
-  ]
-}
-        `
+        content:
+          'Colete anúncios de "' + produto + '" em ' + cidade +
+          '. Retorne APENAS JSON: { "items":[{ "title","price","location","date","link","full_text","quality"}] } ' +
+          'quality deve ser bom, medio ou suspeito. Marque suspeito SOMENTE se houver defeito explícito ou golpe.'
       },
-      {
-        role: "user",
-        content: `Colete anúncios de ${produto} em ${cidade} e região metropolitana.`
-      }
+      { role: "user", content: "Buscar anúncios" }
     ]);
 
-    if (layer1.error) {
-      return res.status(500).json({ error: layer1.error.message });
+    const j1 = extractJSON(l1.choices[0].message.content);
+    if (!j1 || !j1.items) {
+      return res.status(500).json({ error: "Falha camada 1" });
     }
 
-    const raw1 = layer1.choices[0].message.content;
-    const match1 = raw1.match(/\{[\s\S]*\}/);
-
-    if (!match1) {
-      console.error("Camada 1 sem JSON:", raw1);
-      return res.status(500).json({ error: "Falha na camada 1" });
-    }
-
-    const parsedLayer1 = JSON.parse(match1[0]);
-
-    // 🔧 ALTERAÇÃO CRÍTICA: aceitar "bom" e "medio"
-    const cleanItems = (parsedLayer1.items || []).filter(
-      item => item.quality === "bom" || item.quality === "medio"
+    const cleanItems = j1.items.filter(
+      i => i.quality === "bom" || i.quality === "medio"
     );
-
-    console.log("Camada 1 - total:", parsedLayer1.items?.length || 0);
-    console.log("Camada 1 - bom/medio:", cleanItems.length);
 
     if (cleanItems.length === 0) {
       return res.status(200).json({ items: [], precoMedio: 0 });
     }
 
-    /* =====================================================
-       🔹 CAMADA 2 — PREÇO MÉDIO REGIONAL (gpt-5-mini)
-    ===================================================== */
-    const layer2 = await callOpenAI(apiKey, "gpt-5-mini", [
+    /* CAMADA 2 */
+    const l2 = await callOpenAI(apiKey, "gpt-5-mini", [
       {
         role: "system",
-        content: `
-Calcule o preço médio regional ponderado.
-Ignore outliers extremos.
-
-REGRAS:
-- Retorne APENAS JSON puro
-- Não use markdown
-
-Formato:
-{ "market_average": number }
-        `
+        content:
+          'Calcule preço médio regional. Retorne APENAS JSON: { "market_average": number }'
       },
-      {
-        role: "user",
-        content: JSON.stringify(cleanItems)
-      }
+      { role: "user", content: JSON.stringify(cleanItems) }
     ]);
 
-    if (layer2.error) {
-      return res.status(500).json({ error: layer2.error.message });
+    const j2 = extractJSON(l2.choices[0].message.content);
+    if (!j2) {
+      return res.status(500).json({ error: "Falha camada 2" });
     }
 
-    const raw2 = laye
+    const mediaRegional = j2.market_average || 0;
+
+    /* CAMADA 3 */
+    const l3 = await callOpenAI(apiKey, "gpt-5-mini", [
+      {
+        role: "system",
+        content:
+          'Escolha as 3 melhores oportunidades. Retorne APENAS JSON: { "items":[{ "title","price","location","date","analysis","link","full_text"}] }'
+      },
+      { role: "user", content: JSON.stringify(cleanItems) }
+    ]);
+
+    const j3 = extractJSON(l3.choices[0].message.content);
+    if (!j3 || !j3.items) {
+      return res.status(500).json({ error: "Falha camada 3" });
+    }
+
+    const itemsFinal = j3.items.map(it => {
+      const p = String(it.price).replace(/[R$\s.]/g, "").replace(",", ".");
+      const priceNum = parseFloat(p) || 999999;
+      const isMain = it.location
+        .toLowerCase()
+        .includes(cidade.toLowerCase().split(" ")[0]);
+
+      return {
+        ...it,
+        price_num: priceNum,
+        is_main_city: isMain,
+        img: "/placeholder-120x90.png",
+        analysis: it.analysis.startsWith("✨")
+          ? it.analysis
+          : "✨ " + it.analysis
+      };
+    }).sort((a, b) => {
+      if (a.price_num !== b.price_num) return a.price_num - b.price_num;
+      if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
+      return 0;
+    });
+
+    return res.status(200).json({
+      items: itemsFinal.slice(0, 3),
+      precoMedio: Math.round(mediaRegional)
+    });
+
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Erro interno", details: e.message });
+  }
+}
+ = laye
