@@ -1,121 +1,88 @@
-export const config = { api: { bodyParser: true }, runtime: "nodejs" };
+import OpenAI from "openai";
 
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-
-async function callOpenAI(apiKey, model, messages) {
-  const r = await fetch(OPENAI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ model, messages }),
-  });
-  return r.json();
-}
-
-function extractJSON(text) {
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  return JSON.parse(m[0]);
-}
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Método não permitido" });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  const { produto, cidade } = req.body || {};
-
   try {
-    /* CAMADA 1 */
-    const l1 = await callOpenAI(apiKey, "gpt-5-nano", [
-      {
-        role: "system",
-        content:
-          'Colete anúncios de "' + produto + '" em ' + cidade +
-          '. Retorne APENAS JSON: { "items":[{ "title","price","location","date","link","full_text","quality"}] } ' +
-          'quality deve ser bom, medio ou suspeito. Marque suspeito SOMENTE se houver defeito explícito ou golpe.'
-      },
-      { role: "user", content: "Buscar anúncios" }
-    ]);
+    const { termo, localizacao } = req.body;
 
-    const j1 = extractJSON(l1.choices[0].message.content);
-    if (!j1 || !j1.items) {
-      return res.status(500).json({ error: "Falha camada 1" });
+    if (!termo || !localizacao) {
+      return res.status(400).json({
+        error: "Parâmetros obrigatórios ausentes (termo ou localizacao)",
+      });
     }
 
-    const cleanItems = j1.items.filter(
-      i => i.quality === "bom" || i.quality === "medio"
-    );
+    /**
+     * PROMPT – análise de mercado
+     */
+    const prompt = `
+Você é um especialista em análise de mercado local.
 
-    if (cleanItems.length === 0) {
-      return res.status(200).json({ items: [], precoMedio: 0 });
-    }
+Produto: ${termo}
+Região: ${localizacao}
 
-    /* CAMADA 2 */
-    const l2 = await callOpenAI(apiKey, "gpt-5-mini", [
-      {
-        role: "system",
-        content:
-          'Calcule preço médio regional. Retorne APENAS JSON: { "market_average": number }'
-      },
-      { role: "user", content: JSON.stringify(cleanItems) }
-    ]);
+Tarefas:
+1. Estimar o preço médio praticado na região.
+2. Apontar se o preço tende a estar acima, abaixo ou na média do mercado.
+3. Indicar 3 boas oportunidades de compra (descritas de forma genérica).
+4. Gerar uma análise curta e objetiva para um app de comparação de preços.
 
-    const j2 = extractJSON(l2.choices[0].message.content);
-    if (!j2) {
-      return res.status(500).json({ error: "Falha camada 2" });
-    }
+Formato de saída (JSON válido):
+{
+  "preco_medio": number,
+  "tendencia": "acima" | "abaixo" | "na média",
+  "melhores_oportunidades": [
+    { "descricao": string }
+  ],
+  "analise": string
+}
+`;
 
-    const mediaRegional = j2.market_average || 0;
-
-    /* CAMADA 3 */
-    const l3 = await callOpenAI(apiKey, "gpt-5-mini", [
-      {
-        role: "system",
-        content:
-          'Escolha as 3 melhores oportunidades. Retorne APENAS JSON: { "items":[{ "title","price","location","date","analysis","link","full_text"}] }'
-      },
-      { role: "user", content: JSON.stringify(cleanItems) }
-    ]);
-
-    const j3 = extractJSON(l3.choices[0].message.content);
-    if (!j3 || !j3.items) {
-      return res.status(500).json({ error: "Falha camada 3" });
-    }
-
-    const itemsFinal = j3.items.map(it => {
-      const p = String(it.price).replace(/[R$\s.]/g, "").replace(",", ".");
-      const priceNum = parseFloat(p) || 999999;
-      const isMain = it.location
-        .toLowerCase()
-        .includes(cidade.toLowerCase().split(" ")[0]);
-
-      return {
-        ...it,
-        price_num: priceNum,
-        is_main_city: isMain,
-        img: "/placeholder-120x90.png",
-        analysis: it.analysis.startsWith("✨")
-          ? it.analysis
-          : "✨ " + it.analysis
-      };
-    }).sort((a, b) => {
-      if (a.price_num !== b.price_num) return a.price_num - b.price_num;
-      if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
-      return 0;
+    /**
+     * CHAMADA AO MODELO
+     */
+    const completion = await client.chat.completions.create({
+      model: "gpt-5-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Responda exclusivamente em JSON válido.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.4,
     });
 
-    return res.status(200).json({
-      items: itemsFinal.slice(0, 3),
-      precoMedio: Math.round(mediaRegional)
-    });
+    const raw = completion.choices[0].message.content;
 
+    /**
+     * Garante que o retorno seja JSON
+     */
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (jsonError) {
+      return res.status(500).json({
+        error: "Erro ao interpretar resposta do modelo",
+        raw_response: raw,
+      });
+    }
+
+    return res.status(200).json(parsed);
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "Erro interno", details: e.message });
+    console.error("Erro na API buscar:", e);
+    return res.status(500).json({
+      error: "Erro interno",
+      details: e.message,
+    });
   }
 }
- = laye
