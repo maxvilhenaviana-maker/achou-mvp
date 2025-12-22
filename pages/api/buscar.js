@@ -2,6 +2,18 @@ export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
+async function callOpenAI(apiKey, model, messages) {
+  const response = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, messages }),
+  });
+  return response.json();
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
 
@@ -9,76 +21,121 @@ export default async function handler(req, res) {
   const { produto, cidade } = req.body || {};
 
   try {
-    const response = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview", 
-        messages: [
-          { 
-            role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
+    /* =====================================================
+       🔹 CAMADA 1 — COLETA, LIMPEZA E TRIAGEM (gpt-5-nano)
+    ===================================================== */
+    const layer1 = await callOpenAI(apiKey, "gpt-5-nano", [
+      {
+        role: "system",
+        content: `
+        Normalize anúncios de "${produto}" para ${cidade}.
+        Tarefas:
+        - Normalizar título
+        - Extrair preço, estado e localização
+        - Detectar duplicidade
+        - Classificar: bom | medio | suspeito
 
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO — REGRA ABSOLUTA):
-            - Itens com defeitos, sucata, conserto ou leilão.
-            - Itens de sites de leilão, mesmo sem a palavra "leilão".
-
-            CRITÉRIOS DE SELEÇÃO:
-            1. Menor preço em bom estado.
-            2. Preferir cidade principal.
-            3. Preferir anúncios mais recentes.
-
-            PESQUISA DE MERCADO:
-            - Calcule o preço médio regional e informe em "market_average".
-
-            IMPORTANTE:
-            - No campo "full_text", traga o TEXTO COMPLETO ORIGINAL do anúncio,
-              exatamente como publicado, sem resumo ou reescrita.
-
-            Retorne estritamente um JSON:
+        Retorne JSON:
+        {
+          "items": [
             {
-              "market_average": number,
-              "items": [
-                {
-                  "title",
-                  "price",
-                  "location",
-                  "date",
-                  "analysis",
-                  "link",
-                  "full_text"
-                }
-              ]
-            }`
-          },
-          { 
-            role: "user", 
-            content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana.` 
-          }
-        ],
-      }),
-    });
+              "title",
+              "price",
+              "location",
+              "date",
+              "link",
+              "full_text",
+              "quality"
+            }
+          ]
+        }`
+      },
+      {
+        role: "user",
+        content: `Colete anúncios de ${produto} em ${cidade} e região metropolitana.`
+      }
+    ]);
 
-    const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
+    if (layer1.error) return res.status(500).json({ error: layer1.error.message });
 
-    let content = data.choices[0].message.content;
+    const rawContent1 = layer1.choices[0].message.content;
+    const parsedLayer1 = JSON.parse(rawContent1.match(/\{.*\}/s)[0]);
+    const cleanItems = (parsedLayer1.items || []).filter(i => i.quality !== "suspeito");
+
+    /* =====================================================
+       🔹 CAMADA 2 — PREÇO MÉDIO REGIONAL (gpt-5-mini)
+    ===================================================== */
+    const layer2 = await callOpenAI(apiKey, "gpt-5-mini", [
+      {
+        role: "system",
+        content: `
+        Calcule o preço médio regional ponderado.
+        - Ignore outliers extremos
+        - Compare com histórico implícito
+
+        Retorne JSON:
+        { "market_average": number }
+        `
+      },
+      {
+        role: "user",
+        content: JSON.stringify(cleanItems)
+      }
+    ]);
+
+    if (layer2.error) return res.status(500).json({ error: layer2.error.message });
+
+    const mediaRegional = JSON.parse(
+      layer2.choices[0].message.content.match(/\{.*\}/s)[0]
+    ).market_average || 0;
+
+    /* =====================================================
+       🔹 CAMADA 3 — TOP 3 OPORTUNIDADES (gpt-5-mini)
+    ===================================================== */
+    const layer3 = await callOpenAI(apiKey, "gpt-5-mini", [
+      {
+        role: "system",
+        content: `
+        Você é um Caçador de Ofertas implacável na região de ${cidade}.
+        Escolha as 3 melhores oportunidades com base em:
+        1. Menor preço em bom estado
+        2. Preferir cidade principal
+        3. Anúncios recentes
+
+        Gere análise curta, clara e objetiva.
+
+        Retorne estritamente JSON:
+        {
+          "items": [
+            {
+              "title",
+              "price",
+              "location",
+              "date",
+              "analysis",
+              "link",
+              "full_text"
+            }
+          ]
+        }`
+      },
+      {
+        role: "user",
+        content: JSON.stringify(cleanItems)
+      }
+    ]);
+
+    if (layer3.error) return res.status(500).json({ error: layer3.error.message });
+
+    let content = layer3.choices[0].message.content;
     const jsonMatch = content.match(/\{.*\}/s);
+
     let itemsFinal = [];
-    let mediaRegional = 0;
-    
+
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       let rawItems = parsed.items || [];
-      mediaRegional = parsed.market_average || 0;
 
       itemsFinal = rawItems.map(it => {
         const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
@@ -104,7 +161,7 @@ export default async function handler(req, res) {
     const finalItems = itemsFinal.slice(0, 3);
     const media = Math.round(mediaRegional);
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       items: finalItems,
       precoMedio: media
     });
