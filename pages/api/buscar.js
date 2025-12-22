@@ -14,22 +14,16 @@ export default async function handler(req, res) {
 
     if (!produto || !cidade) {
       return res.status(400).json({
-        error: "Parâmetros obrigatórios ausentes (termo ou localizacao)",
+        error: "Parâmetros obrigatórios ausentes (produto ou cidade)",
       });
     }
 
-    /**
-     * Prompt focado em gerar oportunidades,
-     * mas depois adaptamos ao contrato do frontend
-     */
-    const prompt = `
-Você é um analista de mercado especializado em encontrar boas oportunidades locais.
-
-Produto: ${produto}
-Região: ${cidade}
-
-Tarefas:
-1. Estimar o preço médio praticado na região.
-2. Identificar boas oportunidades de compra abaixo ou próximas da média.
-3. Para cada oportunidade, descreva:
-   - Título d
+    // ⚠️ Prompt seguro (SEM template string quebrável)
+    const prompt =
+      "Você é um analista de mercado especializado em encontrar boas oportunidades locais.\n\n" +
+      "Produto: " + produto + "\n" +
+      "Região: " + cidade + "\n\n" +
+      "Tarefas:\n" +
+      "1. Estimar o preço médio praticado na região.\n" +
+      "2. Identificar boas oportunidades de compra abaixo ou p
+ - Título d
