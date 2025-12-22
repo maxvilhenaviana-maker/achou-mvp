@@ -10,16 +10,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { termo, localizacao } = req.body;
+    // ✅ CORREÇÃO AQUI — compatível com o frontend atual
+    const { produto, cidade } = req.body;
 
-    if (!termo || !localizacao) {
+    if (!produto || !cidade) {
       return res.status(400).json({
-        error: "Parâmetros obrigatórios ausentes (termo ou localizacao)",
+        error: "Parâmetros obrigatórios ausentes (produto ou cidade)",
       });
     }
 
+    const termo = produto;
+    const localizacao = cidade;
+
     /**
-     * PROMPT – análise de mercado
+     * PROMPT
      */
     const prompt = `
 Você é um especialista em análise de mercado local.
@@ -30,8 +34,8 @@ Região: ${localizacao}
 Tarefas:
 1. Estimar o preço médio praticado na região.
 2. Apontar se o preço tende a estar acima, abaixo ou na média do mercado.
-3. Indicar 3 boas oportunidades de compra (descritas de forma genérica).
-4. Gerar uma análise curta e objetiva para um app de comparação de preços.
+3. Indicar 3 boas oportunidades de compra.
+4. Gerar uma análise curta, clara e confiável.
 
 Formato de saída (JSON válido):
 {
@@ -64,13 +68,10 @@ Formato de saída (JSON válido):
 
     const raw = completion.choices[0].message.content;
 
-    /**
-     * Garante que o retorno seja JSON
-     */
     let parsed;
     try {
       parsed = JSON.parse(raw);
-    } catch (jsonError) {
+    } catch (err) {
       return res.status(500).json({
         error: "Erro ao interpretar resposta do modelo",
         raw_response: raw,
