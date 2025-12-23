@@ -9,74 +9,80 @@ export default async function handler(req, res) {
   const { produto, cidade } = req.body || {};
 
   try {
-    const response = await fetch(OPENAI_URL, {
+    // ESTÁGIO 1: Busca Web com o modelo Search Preview
+    const searchResponse = await fetch(OPENAI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // Voltando para o 4o que suporta a ferramenta de navegação estável
-        model: "gpt-4o", 
+        model: "gpt-4o-mini-search-preview",
         messages: [
           { 
-            role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
+            role: "user", 
+            content: `Encontre os 5 melhores anúncios reais e detalhados de "${produto}" em ${cidade} e região metropolitana. Traga o texto completo de cada um.` 
+          }
+        ],
+      }),
+    });
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
+    const searchData = await searchResponse.json();
+    if (searchData.error) return res.status(500).json({ error: searchData.error.message });
+    const rawContent = searchData.choices[0].message.content;
 
-            CRITÉRIOS DE EXCLUSÃO:
-            - Proibido: Itens com defeitos, sucata, conserto ou leilão.
-
-            IMPORTANTE:
+    // ESTÁGIO 2: Filtragem e Inteligência com gpt-5-mini
+    const refineResponse = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-5-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um Caçador de Ofertas implacável. Analise os anúncios brutos fornecidos.
+            
+            SUA MISSÃO:
+            1. Filtrar apenas os 3 melhores de "${produto}" em ${cidade}.
+            2. EXCLUIR: leilão, sucata, defeitos ou anúncios falsos.
+            3. Calcular o "market_average" real da região.
+            
+            REGRAS DE FORMATAÇÃO:
+            - No campo "full_text", mantenha o texto original completo.
+            - No campo "location", use "Cidade - Bairro".
+            
             Retorne estritamente um JSON:
             {
               "market_average": number,
               "items": [
-                {
-                  "title",
-                  "price",
-                  "location",
-                  "date",
-                  "analysis",
-                  "link",
-                  "full_text"
-                }
+                { "title", "price", "location", "date", "analysis", "link", "full_text" }
               ]
             }`
           },
-          { 
-            role: "user", 
-            content: `Use a navegação web para encontrar os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana.` 
-          }
+          { role: "user", content: `Dados brutos encontrados: ${rawContent}` }
         ],
-        // Ativa a capacidade de pesquisa do modelo
-        tools: [{ type: "web_search" }] 
       }),
     });
 
-    const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
-
-    let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const refineData = await refineResponse.json();
+    let content = refineData.choices[0].message.content;
     
+    // Processamento do JSON final
+    const jsonMatch = content.match(/\{.*\}/s);
     let itemsFinal = [];
     let mediaRegional = 0;
-    
+
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      let rawItems = parsed.items || [];
       mediaRegional = parsed.market_average || 0;
 
-      itemsFinal = rawItems.map(it => {
+      itemsFinal = (parsed.items || []).map(it => {
         const cleanPrice = String(it.price || "").replace(/[R$\s.]/g, '').replace(',', '.');
         const priceNum = parseFloat(cleanPrice) || 999999;
-        const loc = String(it.location || "").toLowerCase();
-        const eCidadePrincipal = loc.includes(cidade.toLowerCase().split(' ')[0]);
+        const eCidadePrincipal = String(it.location || "").toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
         return {
           ...it,
@@ -94,8 +100,8 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({ 
-      items: itemsFinal.slice(0, 3),
-      precoMedio: Math.round(mediaRegional)
+      items: itemsFinal.slice(0, 3), 
+      precoMedio: Math.round(mediaRegional) 
     });
 
   } catch (err) {
