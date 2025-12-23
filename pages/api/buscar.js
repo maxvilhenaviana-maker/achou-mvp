@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   const { produto, cidade } = req.body || {};
 
   try {
-    // ESTÁGIO 1: O "Minerador" busca resultados REAIS e INDIVIDUAIS
+    // ESTÁGIO 1: O "Varredor" busca a lista REAL de anúncios
     const searchResponse = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
@@ -17,8 +17,8 @@ export default async function handler(req, res) {
         model: "gpt-4o-mini-search-preview",
         messages: [{ 
           role: "user", 
-          content: `Acesse a OLX e Mercado Livre. Liste 10 anúncios INDIVIDUAIS e RECENTES de ${produto} em ${cidade}. 
-          Para cada um, extraia: Título, Preço, Bairro exato, Data da postagem e Link.` 
+          content: `Acesse sites de classificados (como OLX). Liste EXATAMENTE os 15 anúncios mais recentes de "${produto}" em ${cidade}. 
+          Para cada um, extraia obrigatoriamente: Título exato, Preço, Bairro, Data/Hora da postagem e o Link direto.` 
         }]
       }),
     });
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     const searchData = await searchResponse.json();
     const rawContent = searchData.choices?.[0]?.message?.content || "";
 
-    // ESTÁGIO 2: O "Estrategista" (gpt-5-mini) aplica o filtro implacável
+    // ESTÁGIO 2: O "Analista gpt-5" filtra e seleciona as oportunidades de ouro
     const refineResponse = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
@@ -35,14 +35,14 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `Você é um especialista em análise de mercado em ${cidade}.
-            Analise os anúncios brutos fornecidos e selecione APENAS os 3 melhores.
+            content: `Você é um analista de dados implacável em ${cidade}. 
+            Analise a lista bruta de anúncios e selecione os 3 melhores.
 
-            CRITÉRIOS OBRIGATÓRIOS:
-            - Localização: Deve conter o BAIRRO de ${cidade}.
-            - Data: Deve ser a data real da postagem informada no anúncio.
-            - Exclusão: Delete qualquer item que pareça anúncio genérico, loja com "várias unidades", leilão ou sucata.
-            - Cálculo: Baseie o "market_average" apenas em itens em bom estado.
+            REGRAS ABSOLUTAS:
+            - Localização: Deve informar "Cidade - Bairro" (Ex: Belo Horizonte - Gutierrez).
+            - Data: Informe o dia e horário exato citado (Ex: Hoje, 10:42).
+            - Qualidade: Descarte "várias opções", anúncios de lojas profissionais genéricas ou itens com defeito.
+            - Preço Médio: Calcule o "market_average" com base em itens similares em bom estado.
 
             Retorne estritamente JSON:
             {
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
               ]
             }`
           },
-          { role: "user", content: `Dados da busca: ${rawContent}` }
+          { role: "user", content: `Dados extraídos: ${rawContent}` }
         ],
       }),
     });
