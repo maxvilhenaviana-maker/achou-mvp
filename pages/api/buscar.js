@@ -16,63 +16,49 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // ALTERAÇÃO: Atualizado para o novo modelo gpt-5-mini
         model: "gpt-5-mini", 
+        // Adicionamos 'reasoning' ou garantimos que o prompt exija a pesquisa
         messages: [
           { 
             role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
+            content: `Você é um Caçador de Ofertas profissional. 
+            IMPORTANTE: Você DEVE realizar uma busca em tempo real na internet para encontrar anúncios atuais.
+            
+            Sua meta é encontrar 3 oportunidades de ouro de "${produto}" em ${cidade} e região.
 
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
-
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO — REGRA ABSOLUTA):
-            - Itens com defeitos, sucata, conserto ou leilão.
-            - Itens de sites de leilão, mesmo sem a palavra "leilão".
-
-            CRITÉRIOS DE SELEÇÃO:
-            - Menor preço em bom estado.
-            - Preferir cidade principal.
-            - Preferir anúncios mais recentes.
-
-            PESQUISA DE MERCADO:
-            - Calcule o preço médio regional e informe em "market_average".
-
-            IMPORTANTE:
-            - No campo "full_text", traga o TEXTO COMPLETO ORIGINAL do anúncio,
-              exatamente como publicado, sem resumo ou reescrita.
-
-            Retorne estritamente um JSON:
+            REGRAS:
+            - Busque especificamente em sites de classificados (OLX, Mercado Livre, etc).
+            - Exclua: leilão, sucata, defeito.
+            - Retorne APENAS o JSON no formato:
             {
               "market_average": number,
               "items": [
-                {
-                  "title",
-                  "price",
-                  "location",
-                  "date",
-                  "analysis",
-                  "link",
-                  "full_text"
-                }
+                { "title", "price", "location", "date", "analysis", "link", "full_text" }
               ]
             }`
           },
           { 
             role: "user", 
-            content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana.` 
+            content: `Pesquise agora e encontre 3 anúncios reais de ${produto} em ${cidade} e região metropolitana.` 
           }
         ],
+        // Dependendo da disponibilidade na sua conta, alguns modelos exigem este parâmetro para busca:
+        // tools: [{ type: "web_search" }] 
       }),
     });
 
     const data = await response.json();
+    
+    // Log para debug (aparecerá no terminal da Vercel)
+    console.log("Resposta OpenAI:", JSON.stringify(data));
+
     if (data.error) return res.status(500).json({ error: data.error.message });
 
     let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{.*\}/s);
+    
+    // Melhoria no Regex para capturar o JSON mesmo com markdown ```json ... ```
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    
     let itemsFinal = [];
     let mediaRegional = 0;
     
@@ -82,35 +68,38 @@ export default async function handler(req, res) {
       mediaRegional = parsed.market_average || 0;
 
       itemsFinal = rawItems.map(it => {
+        // Limpeza de preço mais robusta
         const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
-        const priceNum = parseFloat(cleanPrice) || 999999;
-        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
+        const priceNum = parseFloat(cleanPrice) || 0;
+        const eCidadePrincipal = it.location?.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
         return {
           ...it,
           price_num: priceNum,
-          is_main_city: eCidadePrincipal,
+          is_main_city: !!eCidadePrincipal,
           img: "/placeholder-120x90.png",
-          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
+          analysis: it.analysis?.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
         };
       });
 
-      itemsFinal.sort((a, b) => {
-        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
-        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
-        return 0;
-      });
+      // Só ordena se houver itens
+      if (itemsFinal.length > 0) {
+        itemsFinal.sort((a, b) => a.price_num - b.price_num);
+      }
     }
 
-    const finalItems = itemsFinal.slice(0, 3);
-    const media = Math.round(mediaRegional);
+    // Se após todo o processo a lista estiver vazia
+    if (itemsFinal.length === 0) {
+      console.warn("Nenhum item processado do conteúdo:", content);
+    }
 
     return res.status(200).json({ 
-      items: finalItems,
-      precoMedio: media
+      items: itemsFinal.slice(0, 3),
+      precoMedio: Math.round(mediaRegional)
     });
 
   } catch (err) {
+    console.error("Erro no Handler:", err);
     return res.status(500).json({ error: "Erro interno", details: err.message });
   }
 }
