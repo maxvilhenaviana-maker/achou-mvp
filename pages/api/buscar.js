@@ -1,5 +1,4 @@
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
-
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export default async function handler(req, res) {
@@ -7,12 +6,10 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const { produto, cidade } = req.body || {};
-  
-  // Data e hora exata para evitar alucinações de horários futuros
   const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
   try {
-    // ESTÁGIO 1: Extração literal da lista de resultados
+    // ESTÁGIO 1: Busca bruta e literal
     const rawSearch = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
@@ -20,18 +17,17 @@ export default async function handler(req, res) {
         model: "gpt-4o-mini-search-preview",
         messages: [{ 
           role: "user", 
-          content: `HORA ATUAL: ${agora}. Acesse a listagem da OLX para "${produto}" em ${cidade}. 
-          Liste os 10 anúncios que aparecem no topo. 
-          Extraia APENAS o que está escrito no texto: Título, Preço, Bairro e a Data Exata exibida.` 
+          content: `Acesse a OLX e extraia os 10 primeiros anúncios de "${produto}" em "${cidade}".
+          Para cada um, copie EXATAMENTE: Título, Preço, Bairro (ex: Gutierrez, Santa Terezinha) e Data/Hora.` 
         }],
-        temperature: 0 // Zero criatividade para evitar invenções
+        temperature: 0
       }),
     });
 
     const searchData = await rawSearch.json();
     const textoBruto = searchData.choices?.[0]?.message?.content || "";
 
-    // ESTÁGIO 2: O gpt-5-mini faz o "garimpo" dos dados reais
+    // ESTÁGIO 2: gpt-5-mini apenas organiza o que foi encontrado
     const refineResponse = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
@@ -40,46 +36,39 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `Você é um verificador de fatos. Recebeu uma lista de anúncios e deve extrair os 3 melhores.
-            
-            REGRAS CRÍTICAS:
-            - Se o anúncio indicar horário futuro em relação a ${agora}, DESCARTE.
-            - Localização deve ser: "Cidade - Bairro".
-            - Descarte anúncios com "defeito", "para conserto" ou "sucata".
-            
-            Retorne um JSON rigoroso:
-            {
-              "market_average": number,
-              "items": [{ "title", "price", "location", "date", "analysis", "link", "full_text" }]
-            }`
+            content: `Você é um formatador de dados. Converta a lista de anúncios abaixo para JSON. 
+            Regra: Se o bairro estiver no texto, coloque-o. Se não, use "Belo Horizonte (Geral)".
+            Não descarte anúncios, a menos que sejam claramente sucatas ou peças.`
           },
-          { role: "user", content: `Dados extraídos do site: ${textoBruto}` }
+          { role: "user", content: textoBruto }
         ],
       }),
     });
 
     const finalData = await refineResponse.json();
-    let content = finalData.choices?.[0]?.message?.content || "";
+    const content = finalData.choices?.[0]?.message?.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     
     let itemsFinal = [];
-    let media = 0;
-
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      media = parsed.market_average || 0;
       itemsFinal = (parsed.items || []).map(it => ({
         ...it,
         price_num: parseFloat(String(it.price || "").replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
         img: "/placeholder-120x90.png",
-        analysis: `✨ Verificado: ${it.analysis || "Excelente estado"}`
+        analysis: `✨ Localizado em: ${it.location}`
       }));
-      itemsFinal.sort((a, b) => a.price_num - b.price_num);
     }
 
-    return res.status(200).json({ items: itemsFinal.slice(0, 3), precoMedio: Math.round(media) });
+    // Ordenar pelo menor preço para garantir que a oferta de R$ 190 apareça no topo
+    itemsFinal.sort((a, b) => a.price_num - b.price_num);
+
+    return res.status(200).json({ 
+      items: itemsFinal.slice(0, 3), 
+      precoMedio: itemsFinal.length > 0 ? Math.round(itemsFinal.reduce((acc, curr) => acc + curr.price_num, 0) / itemsFinal.length) : 0 
+    });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro na extração de dados reais" });
+    return res.status(500).json({ error: "Erro na extração" });
   }
 }
