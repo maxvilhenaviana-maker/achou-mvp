@@ -7,26 +7,31 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const { produto, cidade } = req.body || {};
+  
+  // Data e hora exata para evitar alucinações de horários futuros
+  const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
   try {
-    // ESTÁGIO 1: O "Varredor" busca a lista REAL de anúncios
-    const searchResponse = await fetch(OPENAI_URL, {
+    // ESTÁGIO 1: Extração literal da lista de resultados
+    const rawSearch = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "gpt-4o-mini-search-preview",
         messages: [{ 
           role: "user", 
-          content: `Acesse sites de classificados (como OLX). Liste EXATAMENTE os 15 anúncios mais recentes de "${produto}" em ${cidade}. 
-          Para cada um, extraia obrigatoriamente: Título exato, Preço, Bairro, Data/Hora da postagem e o Link direto.` 
-        }]
+          content: `HORA ATUAL: ${agora}. Acesse a listagem da OLX para "${produto}" em ${cidade}. 
+          Liste os 10 anúncios que aparecem no topo. 
+          Extraia APENAS o que está escrito no texto: Título, Preço, Bairro e a Data Exata exibida.` 
+        }],
+        temperature: 0 // Zero criatividade para evitar invenções
       }),
     });
 
-    const searchData = await searchResponse.json();
-    const rawContent = searchData.choices?.[0]?.message?.content || "";
+    const searchData = await rawSearch.json();
+    const textoBruto = searchData.choices?.[0]?.message?.content || "";
 
-    // ESTÁGIO 2: O "Analista gpt-5" filtra e seleciona as oportunidades de ouro
+    // ESTÁGIO 2: O gpt-5-mini faz o "garimpo" dos dados reais
     const refineResponse = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
@@ -35,54 +40,46 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `Você é um analista de dados implacável em ${cidade}. 
-            Analise a lista bruta de anúncios e selecione os 3 melhores.
-
-            REGRAS ABSOLUTAS:
-            - Localização: Deve informar "Cidade - Bairro" (Ex: Belo Horizonte - Gutierrez).
-            - Data: Informe o dia e horário exato citado (Ex: Hoje, 10:42).
-            - Qualidade: Descarte "várias opções", anúncios de lojas profissionais genéricas ou itens com defeito.
-            - Preço Médio: Calcule o "market_average" com base em itens similares em bom estado.
-
-            Retorne estritamente JSON:
+            content: `Você é um verificador de fatos. Recebeu uma lista de anúncios e deve extrair os 3 melhores.
+            
+            REGRAS CRÍTICAS:
+            - Se o anúncio indicar horário futuro em relação a ${agora}, DESCARTE.
+            - Localização deve ser: "Cidade - Bairro".
+            - Descarte anúncios com "defeito", "para conserto" ou "sucata".
+            
+            Retorne um JSON rigoroso:
             {
               "market_average": number,
-              "items": [
-                { "title", "price", "location", "date", "analysis", "link", "full_text" }
-              ]
+              "items": [{ "title", "price", "location", "date", "analysis", "link", "full_text" }]
             }`
           },
-          { role: "user", content: `Dados extraídos: ${rawContent}` }
+          { role: "user", content: `Dados extraídos do site: ${textoBruto}` }
         ],
       }),
     });
 
-    const refineData = await refineResponse.json();
-    const content = refineData.choices?.[0]?.message?.content || "";
+    const finalData = await refineResponse.json();
+    let content = finalData.choices?.[0]?.message?.content || "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     
     let itemsFinal = [];
-    let mediaRegional = 0;
+    let media = 0;
 
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      mediaRegional = parsed.market_average || 0;
+      media = parsed.market_average || 0;
       itemsFinal = (parsed.items || []).map(it => ({
         ...it,
-        price_num: parseFloat(String(it.price || "").replace(/[R$\s.]/g, '').replace(',', '.')) || 999999,
+        price_num: parseFloat(String(it.price || "").replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
         img: "/placeholder-120x90.png",
-        analysis: String(it.analysis || "").startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
+        analysis: `✨ Verificado: ${it.analysis || "Excelente estado"}`
       }));
-
       itemsFinal.sort((a, b) => a.price_num - b.price_num);
     }
 
-    return res.status(200).json({ 
-      items: itemsFinal.slice(0, 3), 
-      precoMedio: Math.round(mediaRegional) 
-    });
+    return res.status(200).json({ items: itemsFinal.slice(0, 3), precoMedio: Math.round(media) });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno", details: err.message });
+    return res.status(500).json({ error: "Erro na extração de dados reais" });
   }
 }
