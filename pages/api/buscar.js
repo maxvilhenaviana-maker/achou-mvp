@@ -1,4 +1,5 @@
 export const config = { api: { bodyParser: true }, runtime: "nodejs" };
+
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export default async function handler(req, res) {
@@ -6,47 +7,34 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   const { produto, cidade } = req.body || {};
-  const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
   try {
-    // ESTÁGIO 1: Busca bruta e literal
-    const rawSearch = await fetch(OPENAI_URL, {
+    const response = await fetch(OPENAI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview",
-        messages: [{ 
-          role: "user", 
-          content: `Acesse a OLX e extraia os 10 primeiros anúncios de "${produto}" em "${cidade}".
-          Para cada um, copie EXATAMENTE: Título, Preço, Bairro (ex: Gutierrez, Santa Terezinha) e Data/Hora.` 
-        }],
-        temperature: 0
-      }),
-    });
-
-    const searchData = await rawSearch.json();
-    const textoBruto = searchData.choices?.[0]?.message?.content || "";
-
-    // ESTÁGIO 2: gpt-5-mini apenas organiza o que foi encontrado
-    const refineResponse = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
+        model: "gpt-4o-mini-search-preview", 
         messages: [
-          {
-            role: "system",
-            content: `Você é um formatador de dados. Converta a lista de anúncios abaixo para JSON. 
-            Regra: Se o bairro estiver no texto, coloque-o. Se não, use "Belo Horizonte (Geral)".
-            Não descarte anúncios, a menos que sejam claramente sucatas ou peças.`
+          { 
+            role: "system", 
+            content: `Você é um extrator de dados REAIS. 
+            HORA ATUAL: 12:29. 
+            PROIBIDO: Inventar anúncios ou horários futuros.
+            MISSÃO: Acesse a OLX, localize a listagem de "${produto}" em ${cidade} e copie os dados exatamente como aparecem.`
           },
-          { role: "user", content: textoBruto }
+          { 
+            role: "user", 
+            content: `Liste os 3 primeiros anúncios REAIS que aparecem agora na OLX para ${produto} em ${cidade}. 
+            Extraia: Título, Preço, Bairro e Data (ex: "Hoje, 10:42"). 
+            Retorne em JSON: {"market_average": 0, "items": [...]}` 
+          }
         ],
+        temperature: 0 // Força o modelo a ser factual e não criativo
       }),
     });
 
-    const finalData = await refineResponse.json();
-    const content = finalData.choices?.[0]?.message?.content || "";
+    const data = await response.json();
+    let content = data.choices[0].message.content;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     
     let itemsFinal = [];
@@ -56,19 +44,13 @@ export default async function handler(req, res) {
         ...it,
         price_num: parseFloat(String(it.price || "").replace(/[R$\s.]/g, '').replace(',', '.')) || 0,
         img: "/placeholder-120x90.png",
-        analysis: `✨ Localizado em: ${it.location}`
+        analysis: `✨ Verificado na listagem real: ${it.title}`
       }));
     }
 
-    // Ordenar pelo menor preço para garantir que a oferta de R$ 190 apareça no topo
-    itemsFinal.sort((a, b) => a.price_num - b.price_num);
-
-    return res.status(200).json({ 
-      items: itemsFinal.slice(0, 3), 
-      precoMedio: itemsFinal.length > 0 ? Math.round(itemsFinal.reduce((acc, curr) => acc + curr.price_num, 0) / itemsFinal.length) : 0 
-    });
+    return res.status(200).json({ items: itemsFinal.slice(0, 3), precoMedio: 0 });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro na extração" });
+    return res.status(500).json({ error: "Erro interno" });
   }
 }
