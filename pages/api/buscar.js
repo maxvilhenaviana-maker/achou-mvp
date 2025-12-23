@@ -16,7 +16,8 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview", 
+        // ALTERAÇÃO: Atualizado para o novo modelo gpt-5-mini
+        model: "gpt-5-mini", 
         messages: [
           { 
             role: "system", 
@@ -32,9 +33,9 @@ export default async function handler(req, res) {
             - Itens de sites de leilão, mesmo sem a palavra "leilão".
 
             CRITÉRIOS DE SELEÇÃO:
-            1. Menor preço em bom estado.
-            2. Preferir cidade principal.
-            3. Preferir anúncios mais recentes.
+            - Menor preço em bom estado.
+            - Preferir cidade principal.
+            - Preferir anúncios mais recentes.
 
             PESQUISA DE MERCADO:
             - Calcule o preço médio regional e informe em "market_average".
@@ -113,4 +114,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Erro interno", details: err.message });
   }
 }
-
