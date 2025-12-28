@@ -1,115 +1,68 @@
-export const config = { api: { bodyParser: true }, runtime: "nodejs" };
+import React from 'react';
 
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+export default function ResultCard({ item, highlight }) {
+  // Função para copiar os dados do anúncio como texto simples
+  const copiarAnuncio = (e) => {
+    e.preventDefault();
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
+    if (!item) return;
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  const { produto, cidade } = req.body || {};
+    try {
+      // Criamos uma lista de textos ignorando campos técnicos (como imagens ou links)
+      const camposParaCopiar = [
+        `Título: ${item.title || 'N/A'}`,
+        `Preço: R$ ${item.price || '—'}`,
+        `Local: ${item.location || '—'}`,
+        `Data: ${item.date || '—'}`,
+        `Análise: ${item.analysis || ''}`,
+        `Link: ${item.link || ''}`
+      ];
 
-  try {
-    const response = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview", 
-        messages: [
-          { 
-            role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
-
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
-
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO — REGRA ABSOLUTA):
-            - Itens com defeitos, sucata, conserto ou leilão.
-            - Itens de sites de leilão, mesmo sem a palavra "leilão".
-
-            CRITÉRIOS DE SELEÇÃO:
-            1. Menor preço em bom estado.
-            2. Preferir cidade principal.
-            3. Preferir anúncios mais recentes.
-
-            PESQUISA DE MERCADO:
-            - Calcule o preço médio regional e informe em "market_average".
-
-            IMPORTANTE:
-            - No campo "full_text", traga o TEXTO COMPLETO ORIGINAL do anúncio,
-              exatamente como publicado, sem resumo ou reescrita.
-
-            Retorne estritamente um JSON:
-            {
-              "market_average": number,
-              "items": [
-                {
-                  "title",
-                  "price",
-                  "location",
-                  "date",
-                  "analysis",
-                  "link",
-                  "full_text"
-                }
-              ]
-            }`
-          },
-          { 
-            role: "user", 
-            content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana.` 
-          }
-        ],
-      }),
-    });
-
-    const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
-
-    let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{.*\}/s);
-    let itemsFinal = [];
-    let mediaRegional = 0;
-    
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      let rawItems = parsed.items || [];
-      mediaRegional = parsed.market_average || 0;
-
-      itemsFinal = rawItems.map(it => {
-        const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
-        const priceNum = parseFloat(cleanPrice) || 999999;
-        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
-
-        return {
-          ...it,
-          price_num: priceNum,
-          is_main_city: eCidadePrincipal,
-          img: "/placeholder-120x90.png",
-          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
-        };
-      });
-
-      itemsFinal.sort((a, b) => {
-        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
-        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
-        return 0;
-      });
+      const textoFinal = camposParaCopiar.join('\n');
+      
+      navigator.clipboard.writeText(textoFinal);
+      alert("📋 Dados do anúncio copiados!");
+    } catch (err) {
+      console.error("Erro ao copiar:", err);
+      alert("Não foi possível copiar os dados.");
     }
+  };
 
-    const finalItems = itemsFinal.slice(0, 3);
-    const media = Math.round(mediaRegional);
+  if (!item) return null;
 
-    return res.status(200).json({ 
-      items: finalItems,
-      precoMedio: media
-    });
+  return (
+    <div className="card" style={{ border: highlight ? '2px solid #28d07e' : '1px solid #eee', padding: '15px', borderRadius: '8px', marginBottom: '10px', backgroundColor: '#fff' }}>
+      <div style={{ flex: 1 }}>
+        <p style={{ fontWeight: 'bold', fontSize: '1.1rem', margin: '0 0 5px 0' }}>{item.title}</p>
+        <p style={{ color: '#28d07e', fontWeight: 'bold', fontSize: '1.2rem', margin: '0 0 5px 0' }}>
+          {item.price ? `R$ ${item.price}` : 'Consultar preço'}
+        </p>
+        <p style={{ fontSize: '0.85rem', color: '#666' }}>
+          {item.location || 'Local não informado'} • {item.date || 'Data não informada'}
+        </p>
+        <p style={{ marginTop: '10px', fontSize: '0.95rem', lineHeight: '1.4' }}>{item.analysis}</p>
+        
+        {highlight && (
+          <span style={{ color: '#28d07e', fontWeight: '700', display: 'block', marginTop: '10px' }}>
+            🔥 Melhor oferta encontrada!
+          </span>
+        )}
+      </div>
 
-  } catch (err) {
-    return res.status(500).json({ error: "Erro interno", details: err.message });
-  }
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end', marginTop: '15px' }}>
+        <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ width: '100%' }}>
+          <button style={{ width: '100%', padding: '8px', backgroundColor: '#0f2133', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Ver anúncio original
+          </button>
+        </a>
+
+        <span
+          onClick={copiarAnuncio}
+          style={{ cursor: 'pointer', fontSize: '0.8rem', color: '#0070f3', textDecoration: 'underline' }}
+        >
+          Copiar dados do anúncio
+        </span>
+      </div>
+    </div>
+  );
 }
