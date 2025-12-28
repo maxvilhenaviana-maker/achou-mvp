@@ -1,21 +1,19 @@
 export default function ResultCard({ item, highlight }) {
 
-  function copiarAnuncio(e) {
+  function copiarTextoAnuncio(e) {
     e.preventDefault(); // impede navegação
-
-    if (!item?.title || !item?.location) {
-      alert("Dados insuficientes para copiar o anúncio.");
+    if (!item.full_text) {
+      alert("Texto completo do anúncio não disponível.");
       return;
     }
 
-    try {
-      const textoCopiado = `${item.title} ${item.location}`;
-      navigator.clipboard.writeText(textoCopiado);
-      alert("📋 Anúncio copiado!");
-    } catch (err) {
-      alert("Erro ao copiar o anúncio.");
-      console.error(err);
-    }
+    navigator.clipboard.writeText(item.full_text)
+      .then(() => {
+        alert("📋 Texto completo do anúncio copiado!");
+      })
+      .catch(() => {
+        alert("Não foi possível copiar o texto.");
+      });
   }
 
   return (
@@ -33,14 +31,14 @@ export default function ResultCard({ item, highlight }) {
           <button className="btn">Ver anúncio</button>
         </a>
 
-        {/* ALTERADO: copia apenas "title + espaço + location" */}
+        {/* ALTERAÇÃO: agora copia o texto completo */}
         <a
           href="#"
-          onClick={copiarAnuncio}
+          onClick={copiarTextoAnuncio}
           className="small"
           style={{cursor:'pointer'}}
         >
-          Copiar anúncio
+          Mais detalhes
         </a>
       </div>
     </div>
