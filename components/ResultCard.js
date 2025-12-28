@@ -44,3 +44,4 @@ export default function ResultCard({ item, highlight }) {
     </div>
   );
 }
+}
