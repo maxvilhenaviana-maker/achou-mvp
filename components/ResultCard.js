@@ -1,15 +1,16 @@
 export default function ResultCard({ item, highlight }) {
-
   function copiarTextoAnuncio(e) {
     e.preventDefault(); // impede navegação
-    if (!item.full_text) {
-      alert("Texto completo do anúncio não disponível.");
+    if (!item.analysis) {
+      alert("Detalhes do anúncio não disponíveis.");
       return;
     }
 
-    navigator.clipboard.writeText(item.full_text)
+    // Nota: Como o prompt padrão não gera um campo "full_text", 
+    // usamos o "analysis" que contém a descrição da oportunidade.
+    navigator.clipboard.writeText(item.analysis)
       .then(() => {
-        alert("📋 Texto completo do anúncio copiado!");
+        alert("📋 Detalhes do anúncio copiados!");
       })
       .catch(() => {
         alert("Não foi possível copiar o texto.");
@@ -17,31 +18,35 @@ export default function ResultCard({ item, highlight }) {
   }
 
   return (
-    <div className="card" style={{border: highlight ? '2px solid var(--green)' : undefined}}>
-      <div style={{flex:1}}>
+    <div className="card" style={{ border: highlight ? '2px solid var(--green)' : undefined }}>
+      <div style={{ flex: 1 }}>
         <p className="title">{item.title}</p>
         <p className="price">{item.price ? `R$ ${item.price}` : '—'}</p>
         <p className="small">{item.location || '—'} • {item.date || '—'}</p>
-        <p style={{marginTop:8}}>{item.analysis || ''}</p>
-        {highlight && <span style={{color:'green', fontWeight:700}}>🔥 Melhor oferta!</span>}
+        <p style={{ marginTop: 8 }}>{item.analysis || ''}</p>
+        {highlight && <span style={{ color: 'green', fontWeight: 700 }}>🔥 Melhor oferta!</span>}
       </div>
 
-      <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
         <a href={item.link} target="_blank" rel="noreferrer">
           <button className="btn">Ver anúncio</button>
         </a>
 
-        {/* ALTERAÇÃO: agora copia o texto completo */}
-        <a
-          href="#"
+        <button
           onClick={copiarTextoAnuncio}
           className="small"
-          style={{cursor:'pointer'}}
+          style={{ 
+            cursor: 'pointer', 
+            background: 'none', 
+            border: 'none', 
+            color: 'inherit', 
+            textDecoration: 'underline',
+            padding: 0
+          }}
         >
           Mais detalhes
-        </a>
+        </button>
       </div>
     </div>
   );
-}
 }
