@@ -8,222 +8,185 @@ const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export default async function handler(req, res) {
 
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
+if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
 
 
 
-  const apiKey = process.env.OPENAI_API_KEY;
+const apiKey = process.env.OPENAI_API_KEY;
 
-  const { produto, cidade } = req.body || {};
+const { produto, cidade } = req.body || {};
 
 
 
-  try {
+try {
 
-    const response = await fetch(OPENAI_URL, {
+const response = await fetch(OPENAI_URL, {
 
-      method: "POST",
+method: "POST",
 
-      headers: {
+headers: {
 
-        "Content-Type": "application/json",
+"Content-Type": "application/json",
 
-        "Authorization": `Bearer ${apiKey}`,
+"Authorization": `Bearer ${apiKey}`,
 
-      },
+},
 
-      body: JSON.stringify({
+body: JSON.stringify({
 
-        model: "gpt-4o-mini-search-preview", 
+model: "gpt-4o-mini-search-preview",
 
-        messages: [
+messages: [
 
-          { 
+{
 
-            role: "system", 
+role: "system",
 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
+content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
 
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
+Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
 
 
 
-            REGRAS DE LOCALIZAÇÃO:
+REGRAS DE LOCALIZAÇÃO:
 
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
+- Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana (ex: se for BH, busque em Contagem, Betim, Nova Lima, etc).
 
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
+- No campo "location", escreva sempre o nome da cidade e o bairro.
 
 
 
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO — REGRA ABSOLUTA):
+CRITÉRIOS DE EXCLUSÃO (PROIBIDO):
 
-            - Itens com defeitos, sucata, conserto ou leilão.
+- Itens com furo, ferrugem, amassados ou defeitos técnicos.
 
-            - Itens de sites de leilão, mesmo sem a palavra "leilão".
+- Anúncios de "conserto", "leilão", "retirada de peças" ou "sucata".
 
 
 
-            CRITÉRIOS DE SELEÇÃO:
+CRITÉRIOS DE SELEÇÃO E DESEMPATE:
 
-            1. Menor preço em bom estado.
+1. Prioridade total para o MENOR PREÇO em bom estado.
 
-            2. Preferir cidade principal.
+2. Em caso de empate no preço, escolha o anúncio que estiver dentro de ${cidade} em vez das cidades vizinhas.
 
-            3. Preferir anúncios mais recentes.
+3. Se o preço e a cidade forem iguais, priorize o mais recente.
 
 
 
-            PESQUISA DE MERCADO:
+Retorne estritamente um JSON: {"items": [{"title", "price", "location", "date", "analysis", "link"}]}`
 
-            - Calcule o preço médio regional e informe em "market_average".
+},
 
+{ role: "user", content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana. Não aceite itens com defeito ou ferrugem.` }
 
+],
 
-            IMPORTANTE:
+}),
 
-            - No campo "full_text", traga o TEXTO COMPLETO ORIGINAL do anúncio,
+});
 
-              exatamente como publicado, sem resumo ou reescrita.
 
 
+const data = await response.json();
 
-            Retorne estritamente um JSON:
+if (data.error) return res.status(500).json({ error: data.error.message });
 
-            {
 
-              "market_average": number,
 
-              "items": [
+let content = data.choices[0].message.content;
 
-                {
+const jsonMatch = content.match(/\{.*\}/s);
 
-                  "title",
+let itemsFinal = [];
 
-                  "price",
 
-                  "location",
+if (jsonMatch) {
 
-                  "date",
+const parsed = JSON.parse(jsonMatch[0]);
 
-                  "analysis",
+let rawItems = parsed.items || [];
 
-                  "link",
 
-                  "full_text"
 
-                }
+itemsFinal = rawItems.map(it => {
 
-              ]
+// 1. Limpeza de Preço
 
-            }`
+const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
 
-          },
+const priceNum = parseFloat(cleanPrice) || 999999;
 
-          { 
 
-            role: "user", 
 
-            content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana.` 
+// 2. Identifica se o item é da cidade principal para o desempate
 
-          }
+const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
-        ],
 
-      }),
 
-    });
+return {
 
+...it,
 
+price_num: priceNum,
 
-    const data = await response.json();
+is_main_city: eCidadePrincipal,
 
-    if (data.error) return res.status(500).json({ error: data.error.message });
+img: "/placeholder-120x90.png",
 
+analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
 
+};
 
-    let content = data.choices[0].message.content;
+});
 
-    const jsonMatch = content.match(/\{.*\}/s);
 
-    let itemsFinal = [];
 
-    let mediaRegional = 0;
+// --- LÓGICA DE ORDENAÇÃO PADRÃO (SEU CÓDIGO) ---
 
-    
+itemsFinal.sort((a, b) => {
 
-    if (jsonMatch) {
+if (a.price_num !== b.price_num) return a.price_num - b.price_num;
 
-      const parsed = JSON.parse(jsonMatch[0]);
+if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
 
-      let rawItems = parsed.items || [];
+return 0;
 
-      mediaRegional = parsed.market_average || 0;
+});
 
+}
 
 
-      itemsFinal = rawItems.map(it => {
 
-        const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
+const finalItems = itemsFinal.slice(0, 3);
 
-        const priceNum = parseFloat(cleanPrice) || 999999;
 
-        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
 
+// --- CÁLCULO DO PREÇO MÉDIO (Lógica Interna JS) ---
 
+// Fazemos a média apenas dos resultados reais retornados pela IA
 
-        return {
+const soma = finalItems.reduce((acc, curr) => acc + (curr.price_num < 999999 ? curr.price_num : 0), 0);
 
-          ...it,
+const media = finalItems.length > 0 ? Math.round(soma / finalItems.length) : 0;
 
-          price_num: priceNum,
 
-          is_main_city: eCidadePrincipal,
 
-          img: "/placeholder-120x90.png",
+return res.status(200).json({
 
-          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
+items: finalItems,
 
-        };
+precoMedio: media // Adicionado para o seu index.js
 
-      });
+});
 
 
 
-      itemsFinal.sort((a, b) => {
+} catch (err) {
 
-        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
+return res.status(500).json({ error: "Erro interno", details: err.message });
 
-        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
-
-        return 0;
-
-      });
-
-    }
-
-
-
-    const finalItems = itemsFinal.slice(0, 3);
-
-    const media = Math.round(mediaRegional);
-
-
-
-    return res.status(200).json({ 
-
-      items: finalItems,
-
-      precoMedio: media
-
-    });
-
-
-
-  } catch (err) {
-
-    return res.status(500).json({ error: "Erro interno", details: err.message });
-
-  }
+}
 
 }
