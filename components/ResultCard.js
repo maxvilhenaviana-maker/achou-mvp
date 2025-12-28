@@ -3,19 +3,15 @@ export default function ResultCard({ item, highlight }) {
   function copiarAnuncio(e) {
     e.preventDefault(); // impede navegação
 
-    if (!item || typeof item !== 'object') {
-      alert("Anúncio inválido.");
+    if (!item?.title || !item?.location) {
+      alert("Dados insuficientes para copiar o anúncio.");
       return;
     }
 
     try {
-      // Extrai apenas os valores do objeto, sem chaves e sem aspas
-      const textoSomenteDados = Object.values(item)
-        .map(v => String(v))
-        .join('\n');
-
-      navigator.clipboard.writeText(textoSomenteDados);
-      alert("📋 Dados do anúncio copiados!");
+      const textoCopiado = `${item.title} ${item.location}`;
+      navigator.clipboard.writeText(textoCopiado);
+      alert("📋 Anúncio copiado!");
     } catch (err) {
       alert("Erro ao copiar o anúncio.");
       console.error(err);
@@ -37,7 +33,7 @@ export default function ResultCard({ item, highlight }) {
           <button className="btn">Ver anúncio</button>
         </a>
 
-        {/* ALTERADO: copia apenas os valores do JSON */}
+        {/* ALTERADO: copia apenas "title + espaço + location" */}
         <a
           href="#"
           onClick={copiarAnuncio}
