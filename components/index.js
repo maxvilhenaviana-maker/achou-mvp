@@ -49,7 +49,7 @@ export default function Home() {
       {/* HEADER — IDENTIDADE DO APP */}
       <header className="header">
         <div className="logo">
-          <img src="/logo-radar.png" alt="Achou.net.br" />
+          <img src="/logo-512.png" alt="Achou.net.br" />
           <div>
             <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
               Achou<span style={{ color: '#28d07e' }}>.net.br</span>
