@@ -3,113 +3,113 @@ export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Método não permitido" });
+  }
 
   const apiKey = process.env.OPENAI_API_KEY;
-  const { produto, cidade } = req.body || {};
+  const { produto, cidade, categoria } = req.body || {};
+
+  if (!produto || !cidade || !categoria) {
+    return res.status(400).json({ error: "Produto, cidade e categoria são obrigatórios" });
+  }
+
+  const systemPrompt = `
+Atue como um analista independente de mercado e apoio à decisão de compra do consumidor.
+Você possui acesso à internet para pesquisa.
+Utilize esse acesso para buscar informações ATUAIS e públicas.
+Se não encontrar dados confiáveis ou consistentes, declare explicitamente a limitação.
+NÃO invente, estime ou presuma informações.
+
+Contexto da análise:
+• Produto: ${produto}
+• Cidade: ${cidade}
+• Categoria: ${categoria}
+
+Produza um guia estruturado de apoio à decisão, com linguagem clara, objetiva e imparcial.
+Siga RIGOROSAMENTE o formato abaixo.
+
+────────────────────────────────────
+1. Resumo Executivo (leitura rápida)
+Forneça exatamente 3 pontos objetivos:
+• Principal fator que mais impacta uma boa compra deste produto
+• Risco ou armadilha mais comum identificada em pesquisas recentes
+• Estratégia prática para melhor custo-benefício
+
+────────────────────────────────────
+2. Critérios de Avaliação Relevantes
+Liste de 3 a 5 critérios realmente importantes para este produto.
+Explique cada critério em até 2 linhas.
+
+────────────────────────────────────
+3. Panorama de Mercado no Brasil
+
+3.1 Marcas e Segmentos Mais Frequentes
+• Cite as marcas/categorias mais presentes
+• Destaque fatores como assistência técnica e aceitação do consumidor
+
+3.2 Confiabilidade e Problemas Recorrentes
+• Apresente padrões de reclamações reais
+• Se não houver dados públicos consistentes, diga explicitamente
+
+────────────────────────────────────
+4. Evidências Atuais de Mercado (Pesquisa Online)
+
+4.1 Referência de Preço
+• Onde pesquisar (ex.: Zoom, Buscapé, sites de OLX/Webmotors/marketplaces)
+• Indicar tendência geral (baixo/médio/alto)
+
+4.2 Rede de Assistência na Cidade
+• Como verificar assistência autorizada local
+• Sugerir termos de busca práticos
+
+4.3 Satisfação do Consumidor
+• Padrões públicos de ReclameAQUI, Procon, fóruns, etc.
+• Se não houver dados relevantes, declare claramente
+
+────────────────────────────────────
+5. Recomendações Práticas de Decisão
+Forneça exatamente 3 recomendações no formato:
+1. Priorize [...]
+2. Verifique [...]
+3. Evite [...]
+
+────────────────────────────────────
+6. Aviso Importante ao Consumidor
+Inclua obrigatoriamente o texto abaixo, SEM alterações:
+“Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.”
+`;
 
   try {
     const response = await fetch(OPENAI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview", 
+        model: "gpt-4o-mini-search-preview",
         messages: [
-          { 
-            role: "system", 
-            content: `Você é um Caçador de Ofertas implacável na região de ${cidade}.
-            Sua meta é encontrar 3 oportunidades de ouro de "${produto}".
-
-            REGRAS DE LOCALIZAÇÃO:
-            - Busque em ${cidade} E TAMBÉM nas cidades da região metropolitana.
-            - No campo "location", escreva sempre o nome da cidade e o bairro.
-
-            CRITÉRIOS DE EXCLUSÃO (PROIBIDO — REGRA ABSOLUTA):
-            - Itens com defeitos, sucata, conserto ou leilão.
-            - Itens de sites de leilão, mesmo sem a palavra "leilão".
-
-            CRITÉRIOS DE SELEÇÃO:
-            1. Menor preço em bom estado.
-            2. Preferir cidade principal.
-            3. Preferir anúncios mais recentes.
-
-            PESQUISA DE MERCADO:
-            - Calcule o preço médio regional e informe em "market_average".
-
-            IMPORTANTE:
-            - No campo "full_text", traga o TEXTO COMPLETO ORIGINAL do anúncio,
-              exatamente como publicado, sem resumo ou reescrita.
-
-            Retorne estritamente um JSON:
-            {
-              "market_average": number,
-              "items": [
-                {
-                  "title",
-                  "price",
-                  "location",
-                  "date",
-                  "analysis",
-                  "link",
-                  "full_text"
-                }
-              ]
-            }`
-          },
-          { 
-            role: "user", 
-            content: `Encontre os 3 melhores anúncios de ${produto} em ${cidade} e região metropolitana.` 
-          }
+          { role: "system", content: systemPrompt }
         ],
-      }),
+        temperature: 0.3
+      })
     });
 
     const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
 
-    let content = data.choices[0].message.content;
-    const jsonMatch = content.match(/\{.*\}/s);
-    let itemsFinal = [];
-    let mediaRegional = 0;
-    
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      let rawItems = parsed.items || [];
-      mediaRegional = parsed.market_average || 0;
-
-      itemsFinal = rawItems.map(it => {
-        const cleanPrice = String(it.price).replace(/[R$\s.]/g, '').replace(',', '.');
-        const priceNum = parseFloat(cleanPrice) || 999999;
-        const eCidadePrincipal = it.location.toLowerCase().includes(cidade.toLowerCase().split(' ')[0]);
-
-        return {
-          ...it,
-          price_num: priceNum,
-          is_main_city: eCidadePrincipal,
-          img: "/placeholder-120x90.png",
-          analysis: it.analysis.startsWith("✨") ? it.analysis : `✨ ${it.analysis}`
-        };
-      });
-
-      itemsFinal.sort((a, b) => {
-        if (a.price_num !== b.price_num) return a.price_num - b.price_num;
-        if (a.is_main_city !== b.is_main_city) return a.is_main_city ? -1 : 1;
-        return 0;
-      });
+    if (data.error) {
+      return res.status(500).json({ error: data.error.message });
     }
 
-    const finalItems = itemsFinal.slice(0, 3);
-    const media = Math.round(mediaRegional);
+    const analysis = data.choices?.[0]?.message?.content;
 
-    return res.status(200).json({ 
-      items: finalItems,
-      precoMedio: media
-    });
+    return res.status(200).json({ analysis });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno", details: err.message });
+    return res.status(500).json({
+      error: "Erro interno",
+      details: err.message
+    });
   }
 }
