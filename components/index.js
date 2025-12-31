@@ -15,6 +15,7 @@ export default function Home() {
       setError("Preencha produto, cidade e categoria.");
       return;
     }
+
     setError(null);
     setLoading(true);
     setAnalysis('');
@@ -44,6 +45,23 @@ export default function Home() {
 
   return (
     <div className="container">
+
+      {/* HEADER — IDENTIDADE DO APP */}
+      <header className="header">
+        <div className="logo">
+          <img src="/logo-radar.png" alt="Achou.net.br" />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
+              Achou<span style={{ color: '#28d07e' }}>.net.br
+            </div>
+            <div className="small">
+              Guia Inteligente de Decisão de Compra
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* TÍTULO FUNCIONAL */}
       <h1>Guia Inteligente de Decisão de Compra</h1>
 
       <form onSubmit={buscar} className="searchRow">
