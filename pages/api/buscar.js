@@ -91,8 +91,7 @@ Inclua obrigatoriamente o texto abaixo, SEM alterações:
         model: "gpt-4o-mini-search-preview",
         messages: [
           { role: "system", content: systemPrompt }
-        ],
-        temperature: 0.3
+        ]
       })
     });
 
