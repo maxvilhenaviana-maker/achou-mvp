@@ -11,54 +11,77 @@ export default async function handler(req, res) {
   const { produto, cidade, categoria } = req.body || {};
 
   if (!produto || !cidade || !categoria) {
-    return res.status(400).json({ error: "Produto, cidade e categoria são obrigatórios" });
+    return res.status(400).json({
+      error: "Produto, cidade e categoria são obrigatórios"
+    });
   }
 
   const systemPrompt = `
-Você é um analista independente de mercado e apoio à decisão de compra.
+Você é um ANALISTA INDEPENDENTE DE MERCADO especializado em APOIO À TOMADA DE DECISÃO DE COMPRA.
+Você possui acesso à internet para pesquisa de informações públicas e atuais.
 
-Você TEM acesso à internet para pesquisa.
-Utilize apenas informações públicas, atuais e verificáveis.
-Se não houver dados confiáveis, declare explicitamente a limitação.
-NÃO invente, estime ou presuma informações.
+⚠️ REGRAS OBRIGATÓRIAS:
+- NÃO invente dados.
+- NÃO presuma valores.
+- Se algum dado não estiver disponível, DECLARE a limitação.
+- Rankings devem seguir CRITÉRIOS EXPLÍCITOS.
+- Reclamações devem ser analisadas SEMPRE de forma PROPORCIONAL ao volume estimado de vendas dos últimos 12 meses.
 
-Contexto:
+════════════════════════════════════
+CONTEXTO DA ANÁLISE
 Produto: ${produto}
 Cidade: ${cidade}
 Categoria: ${categoria}
 
-RETORNE EXCLUSIVAMENTE UM JSON VÁLIDO.
-NÃO utilize markdown.
-NÃO escreva texto fora da estrutura JSON.
-NÃO inclua explicações adicionais.
+════════════════════════════════════
+FORMATO DE RESPOSTA (OBRIGATÓRIO)
 
-Estrutura OBRIGATÓRIA:
+🔹 CARD 1 — ✅ MELHORES OPÇÕES (Top 3)
+Classifique considerando:
+1) Melhor custo-benefício (preço médio)
+2) Rede de manutenção na cidade
+3) MENOR índice proporcional de reclamações (reclamações ÷ vendas estimadas)
 
-{
-  "cards": {
-    "melhores_opcoes": [
-      { "modelo": "", "motivo": "", "perfil": "" },
-      { "modelo": "", "motivo": "", "perfil": "" },
-      { "modelo": "", "motivo": "", "perfil": "" }
-    ],
-    "faixa_preco": {
-      "tendencia": "baixo | médio | alto",
-      "onde_pesquisar": ["", "", ""],
-      "observacao": ""
-    },
-    "mais_reclamacoes": [
-      { "modelo": "", "problema": "", "fonte": "" },
-      { "modelo": "", "problema": "", "fonte": "" },
-      { "modelo": "", "problema": "", "fonte": "" }
-    ]
-  },
-  "detalhes": {
-    "criterios_avaliacao": [],
-    "assistencia_tecnica": [],
-    "satisfacao_consumidor": [],
-    "recomendacoes_praticas": []
-  }
-}
+Para cada item informe:
+• Modelo
+• Motivo objetivo da posição no ranking
+
+🔹 CARD 2 — 💰 FAIXA DE PREÇO (VALORES)
+Informe obrigatoriamente:
+• Preço mínimo (R$)
+• Preço médio (R$)
+• Preço máximo (R$)
+• Fontes públicas utilizadas (ex.: OLX, NaPista, Webmotors)
+• Observação curta sobre variação de preço
+
+🔹 CARD 3 — ⚠️ MAIORES ÍNDICES PROPORCIONAIS DE RECLAMAÇÃO
+Liste os 3 modelos com:
+• Maior proporção estimada de reclamações por volume de vendas (últimos 12 meses)
+• Tipo de problema mais recorrente
+Se não houver dados suficientes, DECLARE explicitamente.
+
+════════════════════════════════════
+ℹ️ INFORMAÇÕES COMPLEMENTARES (EM TÓPICOS)
+
+A) REGRAS UNIVERSAIS (sempre incluir):
+• Avaliar a faixa de preço real praticada na cidade
+• Priorizar produtos com ampla rede de manutenção local
+• Evitar produtos com alto índice proporcional de reclamações
+• Confirmar todas as informações diretamente com o vendedor ou fabricante
+
+B) RECOMENDAÇÕES ESPECÍFICAS
+Adapte conforme:
+• Produto analisado
+• Categoria (${categoria})
+
+Exemplos:
+- Se USADO: histórico, desgaste, procedência
+- Se NOVO: garantia, revisões, custo de manutenção
+
+════════════════════════════════════
+🔒 AVISO IMPORTANTE AO CONSUMIDOR (OBRIGATÓRIO — COPIAR SEM ALTERAÇÕES):
+
+“Esta análise é baseada em informações públicas disponíveis na internet e em estimativas de mercado, devendo ser utilizada apenas como apoio à tomada de decisão. Os dados apresentados podem variar conforme região, período e condições específicas do produto. O Achou.net.br não possui vínculo com fabricantes, vendedores ou plataformas citadas e não se responsabiliza pela decisão final de compra, que é de responsabilidade exclusiva do consumidor.”
 `;
 
   try {
@@ -72,7 +95,8 @@ Estrutura OBRIGATÓRIA:
         model: "gpt-4o-mini-search-preview",
         messages: [
           { role: "system", content: systemPrompt }
-        ]
+        ],
+        temperature: 0.25
       })
     });
 
@@ -82,23 +106,19 @@ Estrutura OBRIGATÓRIA:
       return res.status(500).json({ error: data.error.message });
     }
 
-    const raw = data.choices?.[0]?.message?.content;
+    const analysis = data.choices?.[0]?.message?.content;
 
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
+    if (!analysis) {
       return res.status(500).json({
-        error: "Falha ao interpretar resposta da IA",
-        raw
+        error: "Não foi possível gerar a análise."
       });
     }
 
-    return res.status(200).json(parsed);
+    return res.status(200).json({ analysis });
 
   } catch (err) {
     return res.status(500).json({
-      error: "Erro interno",
+      error: "Erro interno na geração da análise",
       details: err.message
     });
   }
