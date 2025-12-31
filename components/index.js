@@ -5,7 +5,7 @@ export default function Home() {
   const [cidade, setCidade] = useState('');
   const [categoria, setCategoria] = useState('');
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState('');
+  const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
   async function buscar(e) {
@@ -16,9 +16,9 @@ export default function Home() {
       return;
     }
 
-    setError(null);
     setLoading(true);
-    setAnalysis('');
+    setError(null);
+    setData(null);
 
     try {
       const resp = await fetch('/api/buscar', {
@@ -33,11 +33,10 @@ export default function Home() {
         throw new Error(json.error || "Erro ao gerar análise");
       }
 
-      setAnalysis(json.analysis);
+      setData(json);
 
     } catch (err) {
       setError(err.message);
-
     } finally {
       setLoading(false);
     }
@@ -45,59 +44,24 @@ export default function Home() {
 
   return (
     <div className="container">
-
-      {/* HEADER — IDENTIDADE DO APP */}
       <header className="header">
         <div className="logo">
           <img src="/logo-512.png" alt="Achou.net.br" />
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
-              Achou<span style={{ color: '#28d07e' }}>.net.br</span>
-            </div>
-            <div className="small">
-              Guia Inteligente de Decisão de Compra
-            </div>
+            <strong>Achou<span style={{ color: '#28D07E' }}>.net.br</span></strong>
+            <div className="small">Guia Inteligente de Decisão de Compra</div>
           </div>
         </div>
       </header>
 
-      {/* TÍTULO FUNCIONAL */}
       <h1>Guia Inteligente de Decisão de Compra</h1>
 
       <form onSubmit={buscar} className="searchRow">
-        <input
-          className="input"
-          placeholder="Produto"
-          value={produto}
-          onChange={e => setProduto(e.target.value)}
-        />
+        <input className="input" placeholder="Produto" value={produto} onChange={e => setProduto(e.target.value)} />
+        <input className="input" placeholder="Cidade" value={cidade} onChange={e => setCidade(e.target.value)} />
 
-        <input
-          className="input"
-          placeholder="Cidade"
-          value={cidade}
-          onChange={e => setCidade(e.target.value)}
-        />
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            type="button"
-            className="btn"
-            style={{ opacity: categoria === 'NOVO' ? 1 : 0.6 }}
-            onClick={() => setCategoria('NOVO')}
-          >
-            Novo
-          </button>
-
-          <button
-            type="button"
-            className="btn"
-            style={{ opacity: categoria === 'USADO' ? 1 : 0.6 }}
-            onClick={() => setCategoria('USADO')}
-          >
-            Usado
-          </button>
-        </div>
+        <button type="button" className="btn" style={{ opacity: categoria === 'NOVO' ? 1 : 0.6 }} onClick={() => setCategoria('NOVO')}>Novo</button>
+        <button type="button" className="btn" style={{ opacity: categoria === 'USADO' ? 1 : 0.6 }} onClick={() => setCategoria('USADO')}>Usado</button>
 
         <button type="submit" className="btn" disabled={loading}>
           {loading ? 'Analisando…' : 'Gerar Análise'}
@@ -106,19 +70,27 @@ export default function Home() {
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {analysis && (
-        <div
-          style={{
-            whiteSpace: 'pre-wrap',
-            background: '#fff',
-            padding: '20px',
-            marginTop: '20px',
-            borderRadius: '8px'
-          }}
-        >
-          {analysis}
-        </div>
-      )}
-    </div>
-  );
-}
+      {data && (
+        <>
+          <div className="card">
+            <h3>✅ Melhores Opções</h3>
+            {data.cards.melhores_opcoes.map((o, i) => (
+              <p key={i}><strong>{o.modelo}</strong> — {o.motivo}</p>
+            ))}
+          </div>
+
+          <div className="card">
+            <h3>💰 Faixa de Preço</h3>
+            <p><strong>Tendência:</strong> {data.cards.faixa_preco.tendencia}</p>
+            <p><strong>Onde pesquisar:</strong> {data.cards.faixa_preco.onde_pesquisar.join(', ')}</p>
+            <p>{data.cards.faixa_preco.observacao}</p>
+          </div>
+
+          <div className="card">
+            <h3>⚠️ Mais Reclamações</h3>
+            {data.cards.mais_reclamacoes.map((r, i) => (
+              <p key={i}><strong>{r.modelo}</strong> — {r.problema}</p>
+            ))}
+          </div>
+
+          <div className="card small">
