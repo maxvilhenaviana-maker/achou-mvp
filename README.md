@@ -1,22 +1,18 @@
-# achou-mvp
+# achou.net.br — Guia Inteligente de Decisão de Compra
 
-MVP do **achou.net.br** — aplicação em Next.js que busca e analisa anúncios recentes
-utilizando a API da OpenAI com capacidade de web search.
+Aplicação Next.js para gerar análises estruturadas de apoio à decisão de compra
+com base em pesquisas online e critérios claros.
 
----
+## Conceito
+- Produto
+- Cidade
+- Categoria (Novo ou Usado)
+➡️ Gera um guia baseado em pesquisa real.
 
-## Stack
+## Tecnologias
+- Next.js
+- OpenAI gpt-4o-mini-search-preview
 
-- Next.js (Pages Router)
-- API Routes (Node.js runtime)
-- OpenAI Responses API
-- GPT-4.1 Turbo + Web Search
-- Deploy via Vercel
-
----
-
-## Setup local
-
-1. Clone o repositório:
-   ```bash
-   git clone https://github.com/seu-usuario/achou-mvp.git
+## Setup
+1. Clone
+2. Crie `.env.local`
