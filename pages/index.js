@@ -52,7 +52,7 @@ export default function Home() {
           <img src="/logo-radar.png" alt="Achou.net.br" />
           <div>
             <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>
-              Achou<span style={{ color: '#28d07e' }}>.net.br
+              Achou<span style={{ color: '#28d07e' }}>.net.br</span>
             </div>
             <div className="small">
               Guia Inteligente de Decisão de Compra
@@ -107,13 +107,15 @@ export default function Home() {
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       {analysis && (
-        <div style={{
-          whiteSpace: 'pre-wrap',
-          background: '#fff',
-          padding: '20px',
-          marginTop: '20px',
-          borderRadius: '8px'
-        }}>
+        <div
+          style={{
+            whiteSpace: 'pre-wrap',
+            background: '#fff',
+            padding: '20px',
+            marginTop: '20px',
+            borderRadius: '8px'
+          }}
+        >
           {analysis}
         </div>
       )}
