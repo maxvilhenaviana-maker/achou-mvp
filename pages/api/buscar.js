@@ -15,50 +15,69 @@ export default async function handler(req, res) {
   }
 
   const systemPrompt = `
-Você é um analista independente de mercado e apoio à decisão de compra.
-
-Você TEM acesso à internet para pesquisa.
-Utilize apenas informações públicas, atuais e verificáveis.
-Se não houver dados confiáveis, declare explicitamente a limitação.
+Atue como um analista independente de mercado e apoio à decisão de compra do consumidor.
+Você possui acesso à internet para pesquisa.
+Utilize esse acesso para buscar informações ATUAIS e públicas.
+Se não encontrar dados confiáveis ou consistentes, declare explicitamente a limitação.
 NÃO invente, estime ou presuma informações.
 
-Contexto:
-Produto: ${produto}
-Cidade: ${cidade}
-Categoria: ${categoria}
+Contexto da análise:
+• Produto: ${produto}
+• Cidade: ${cidade}
+• Categoria: ${categoria}
 
-RETORNE EXCLUSIVAMENTE UM JSON VÁLIDO.
-NÃO utilize markdown.
-NÃO escreva texto fora da estrutura JSON.
-NÃO inclua explicações adicionais.
+Produza um guia estruturado de apoio à decisão, com linguagem clara, objetiva e imparcial.
+Siga RIGOROSAMENTE o formato abaixo.
 
-Estrutura OBRIGATÓRIA:
+────────────────────────────────────
+1. Resumo Executivo (leitura rápida)
+Forneça exatamente 3 pontos objetivos:
+• Principal fator que mais impacta uma boa compra deste produto
+• Risco ou armadilha mais comum identificada em pesquisas recentes
+• Estratégia prática para melhor custo-benefício
 
-{
-  "cards": {
-    "melhores_opcoes": [
-      { "modelo": "", "motivo": "", "perfil": "" },
-      { "modelo": "", "motivo": "", "perfil": "" },
-      { "modelo": "", "motivo": "", "perfil": "" }
-    ],
-    "faixa_preco": {
-      "tendencia": "baixo | médio | alto",
-      "onde_pesquisar": ["", "", ""],
-      "observacao": ""
-    },
-    "mais_reclamacoes": [
-      { "modelo": "", "problema": "", "fonte": "" },
-      { "modelo": "", "problema": "", "fonte": "" },
-      { "modelo": "", "problema": "", "fonte": "" }
-    ]
-  },
-  "detalhes": {
-    "criterios_avaliacao": [],
-    "assistencia_tecnica": [],
-    "satisfacao_consumidor": [],
-    "recomendacoes_praticas": []
-  }
-}
+────────────────────────────────────
+2. Critérios de Avaliação Relevantes
+Liste de 3 a 5 critérios realmente importantes para este produto.
+Explique cada critério em até 2 linhas.
+
+────────────────────────────────────
+3. Panorama de Mercado no Brasil
+
+3.1 Marcas e Segmentos Mais Frequentes
+• Cite as marcas/categorias mais presentes
+• Destaque fatores como assistência técnica e aceitação do consumidor
+
+3.2 Confiabilidade e Problemas Recorrentes
+• Apresente padrões de reclamações reais
+• Se não houver dados públicos consistentes, diga explicitamente
+
+────────────────────────────────────
+4. Evidências Atuais de Mercado (Pesquisa Online)
+
+4.1 Referência de Preço
+• Onde pesquisar (ex.: Zoom, Buscapé, sites de OLX/Webmotors/marketplaces)
+• Indicar tendência geral (baixo/médio/alto)
+
+4.2 Rede de Assistência na Cidade
+• Como verificar assistência autorizada local
+• Sugerir termos de busca práticos
+
+4.3 Satisfação do Consumidor
+• Padrões públicos de ReclameAQUI, Procon, fóruns, etc.
+• Se não houver dados relevantes, declare claramente
+
+────────────────────────────────────
+5. Recomendações Práticas de Decisão
+Forneça exatamente 3 recomendações no formato:
+1. Priorize [...]
+2. Verifique [...]
+3. Evite [...]
+
+────────────────────────────────────
+6. Aviso Importante ao Consumidor
+Inclua obrigatoriamente o texto abaixo, SEM alterações:
+“Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.”
 `;
 
   try {
@@ -72,7 +91,8 @@ Estrutura OBRIGATÓRIA:
         model: "gpt-4o-mini-search-preview",
         messages: [
           { role: "system", content: systemPrompt }
-        ]
+        ],
+        temperature: 0.3
       })
     });
 
@@ -82,19 +102,9 @@ Estrutura OBRIGATÓRIA:
       return res.status(500).json({ error: data.error.message });
     }
 
-    const raw = data.choices?.[0]?.message?.content;
+    const analysis = data.choices?.[0]?.message?.content;
 
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (e) {
-      return res.status(500).json({
-        error: "Falha ao interpretar resposta da IA",
-        raw
-      });
-    }
-
-    return res.status(200).json(parsed);
+    return res.status(200).json({ analysis });
 
   } catch (err) {
     return res.status(500).json({
@@ -102,5 +112,4 @@ Estrutura OBRIGATÓRIA:
       details: err.message
     });
   }
-}
 }
