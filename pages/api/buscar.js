@@ -1,7 +1,4 @@
-export const config = {
-  api: { bodyParser: true },
-  runtime: "nodejs"
-};
+export const config = { api: { bodyParser: true }, runtime: "nodejs" };
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -14,63 +11,54 @@ export default async function handler(req, res) {
   const { produto, cidade, categoria } = req.body || {};
 
   if (!produto || !cidade || !categoria) {
-    return res.status(400).json({
-      error: "Produto, cidade e categoria são obrigatórios"
-    });
+    return res.status(400).json({ error: "Produto, cidade e categoria são obrigatórios" });
   }
 
   const systemPrompt = `
-Você é um ANALISTA INDEPENDENTE DE MERCADO especializado em APOIO À DECISÃO DE COMPRA.
-Utilize APENAS informações públicas e pesquisas online reais.
-Se não houver dados confiáveis, declare explicitamente a limitação.
-NÃO invente números, rankings ou marcas.
+Você é um analista independente de mercado e apoio à decisão de compra.
 
-CONTEXTO:
+Você TEM acesso à internet para pesquisa.
+Utilize apenas informações públicas, atuais e verificáveis.
+Se não houver dados confiáveis, declare explicitamente a limitação.
+NÃO invente, estime ou presuma informações.
+
+Contexto:
 Produto: ${produto}
 Cidade: ${cidade}
 Categoria: ${categoria}
 
-RETORNE EXCLUSIVAMENTE UM JSON VÁLIDO, SEM TEXTO FORA DO JSON.
+RETORNE EXCLUSIVAMENTE UM JSON VÁLIDO.
+NÃO utilize markdown.
+NÃO escreva texto fora da estrutura JSON.
+NÃO inclua explicações adicionais.
 
-FORMATO OBRIGATÓRIO:
+Estrutura OBRIGATÓRIA:
 
 {
   "cards": {
     "melhores_opcoes": [
-      {
-        "nome": "",
-        "justificativa": ""
-      }
+      { "modelo": "", "motivo": "", "perfil": "" },
+      { "modelo": "", "motivo": "", "perfil": "" },
+      { "modelo": "", "motivo": "", "perfil": "" }
     ],
     "faixa_preco": {
-      "min": number,
-      "max": number,
-      "fontes": []
+      "tendencia": "baixo | médio | alto",
+      "onde_pesquisar": ["", "", ""],
+      "observacao": ""
     },
     "mais_reclamacoes": [
-      {
-        "nome": "",
-        "motivo": ""
-      }
+      { "modelo": "", "problema": "", "fonte": "" },
+      { "modelo": "", "problema": "", "fonte": "" },
+      { "modelo": "", "problema": "", "fonte": "" }
     ]
   },
-  "recomendacoes": [
-    ""
-  ],
-  "complementar": [
-    ""
-  ],
-  "disclaimer": "texto obrigatório"
+  "detalhes": {
+    "criterios_avaliacao": [],
+    "assistencia_tecnica": [],
+    "satisfacao_consumidor": [],
+    "recomendacoes_praticas": []
+  }
 }
-
-REGRAS IMPORTANTES:
-1. Melhores opções devem considerar: preço médio, rede de manutenção e MENOR índice proporcional de reclamações.
-2. Reclamações devem considerar proporção reclamações / volume de vendas nos últimos 12 meses. Se não houver dado público confiável, DECLARE.
-3. A faixa de preço DEVE ser numérica (mínimo e máximo).
-4. As recomendações devem ser ESPECÍFICAS para o produto e para a categoria (${categoria}).
-5. O texto de disclaimer abaixo é OBRIGATÓRIO e IMUTÁVEL:
-
-“Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.”
 `;
 
   try {
@@ -84,46 +72,35 @@ REGRAS IMPORTANTES:
         model: "gpt-4o-mini-search-preview",
         messages: [
           { role: "system", content: systemPrompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 900
+        ]
       })
     });
 
-    if (!response.ok) {
-      const txt = await response.text();
-      return res.status(500).json({
-        error: "Falha na comunicação com o modelo",
-        details: txt
-      });
-    }
-
     const data = await response.json();
-    const rawContent = data?.choices?.[0]?.message?.content;
 
-    if (!rawContent) {
-      return res.status(500).json({
-        error: "Resposta vazia do modelo"
-      });
+    if (data.error) {
+      return res.status(500).json({ error: data.error.message });
     }
 
-    // Extração defensiva do JSON
-    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    const raw = data.choices?.[0]?.message?.content;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
       return res.status(500).json({
-        error: "Resposta inválida do modelo",
-        raw: rawContent
+        error: "Falha ao interpretar resposta da IA",
+        raw
       });
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
 
     return res.status(200).json(parsed);
 
   } catch (err) {
     return res.status(500).json({
-      error: "Erro interno ao gerar análise",
+      error: "Erro interno",
       details: err.message
     });
   }
+}
 }
