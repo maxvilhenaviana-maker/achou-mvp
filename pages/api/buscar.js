@@ -20,66 +20,27 @@ export default async function handler(req, res) {
 Você é um ANALISTA INDEPENDENTE DE MERCADO especializado em APOIO À TOMADA DE DECISÃO DE COMPRA.
 Você possui acesso à internet para pesquisa de informações públicas e atuais.
 
-⚠️ REGRAS OBRIGATÓRIAS:
+REGRAS:
 - NÃO invente dados.
-- NÃO presuma valores.
-- Se algum dado não estiver disponível, DECLARE a limitação.
-- Rankings devem seguir CRITÉRIOS EXPLÍCITOS.
-- Reclamações devem ser analisadas SEMPRE de forma PROPORCIONAL ao volume estimado de vendas dos últimos 12 meses.
+- Rankings devem considerar preço, rede de manutenção e reclamações proporcionais.
+- Se faltar dado, declare explicitamente.
 
-════════════════════════════════════
-CONTEXTO DA ANÁLISE
+CONTEXTO:
 Produto: ${produto}
 Cidade: ${cidade}
 Categoria: ${categoria}
 
-════════════════════════════════════
-FORMATO DE RESPOSTA (OBRIGATÓRIO)
+FORMATO:
 
-🔹 CARD 1 — ✅ MELHORES OPÇÕES (Top 3)
-Classifique considerando:
-1) Melhor custo-benefício (preço médio)
-2) Rede de manutenção na cidade
-3) MENOR índice proporcional de reclamações (reclamações ÷ vendas estimadas)
+CARD 1 — MELHORES OPÇÕES (Top 3)
+CARD 2 — FAIXA DE PREÇO (mín / médio / máx em R$)
+CARD 3 — MAIORES ÍNDICES PROPORCIONAIS DE RECLAMAÇÕES
 
-Para cada item informe:
-• Modelo
-• Motivo objetivo da posição no ranking
+Depois:
+• Recomendações universais
+• Recomendações específicas (${categoria})
 
-🔹 CARD 2 — 💰 FAIXA DE PREÇO (VALORES)
-Informe obrigatoriamente:
-• Preço mínimo (R$)
-• Preço médio (R$)
-• Preço máximo (R$)
-• Fontes públicas utilizadas (ex.: OLX, NaPista, Webmotors)
-• Observação curta sobre variação de preço
-
-🔹 CARD 3 — ⚠️ MAIORES ÍNDICES PROPORCIONAIS DE RECLAMAÇÃO
-Liste os 3 modelos com:
-• Maior proporção estimada de reclamações por volume de vendas (últimos 12 meses)
-• Tipo de problema mais recorrente
-Se não houver dados suficientes, DECLARE explicitamente.
-
-════════════════════════════════════
-ℹ️ INFORMAÇÕES COMPLEMENTARES (EM TÓPICOS)
-
-A) REGRAS UNIVERSAIS (sempre incluir):
-• Avaliar a faixa de preço real praticada na cidade
-• Priorizar produtos com ampla rede de manutenção local
-• Evitar produtos com alto índice proporcional de reclamações
-• Confirmar todas as informações diretamente com o vendedor ou fabricante
-
-B) RECOMENDAÇÕES ESPECÍFICAS
-Adapte conforme:
-• Produto analisado
-• Categoria (${categoria})
-
-Exemplos:
-- Se USADO: histórico, desgaste, procedência
-- Se NOVO: garantia, revisões, custo de manutenção
-
-════════════════════════════════════
-🔒 AVISO IMPORTANTE AO CONSUMIDOR (OBRIGATÓRIO — COPIAR SEM ALTERAÇÕES):
+Finalize OBRIGATORIAMENTE com o aviso legal abaixo, SEM ALTERAÇÕES:
 
 “Esta análise é baseada em informações públicas disponíveis na internet e em estimativas de mercado, devendo ser utilizada apenas como apoio à tomada de decisão. Os dados apresentados podem variar conforme região, período e condições específicas do produto. O Achou.net.br não possui vínculo com fabricantes, vendedores ou plataformas citadas e não se responsabiliza pela decisão final de compra, que é de responsabilidade exclusiva do consumidor.”
 `;
@@ -93,24 +54,26 @@ Exemplos:
       },
       body: JSON.stringify({
         model: "gpt-4o-mini-search-preview",
-        messages: [
-          { role: "system", content: systemPrompt }
-        ],
-        temperature: 0.25
+        messages: [{ role: "system", content: systemPrompt }],
+        temperature: 0.25,
+        max_tokens: 900
       })
     });
 
-    const data = await response.json();
-
-    if (data.error) {
-      return res.status(500).json({ error: data.error.message });
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(502).json({
+        error: "Falha ao consultar o modelo OpenAI",
+        details: errorText
+      });
     }
 
-    const analysis = data.choices?.[0]?.message?.content;
+    const data = await response.json();
+    const analysis = data?.choices?.[0]?.message?.content;
 
     if (!analysis) {
       return res.status(500).json({
-        error: "Não foi possível gerar a análise."
+        error: "Resposta vazia ou inválida do modelo."
       });
     }
 
@@ -118,7 +81,7 @@ Exemplos:
 
   } catch (err) {
     return res.status(500).json({
-      error: "Erro interno na geração da análise",
+      error: "Erro interno inesperado",
       details: err.message
     });
   }
