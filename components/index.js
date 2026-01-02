@@ -40,10 +40,11 @@ export default function Home() {
     <div className="container">
       <header className="header">
         <div className="logo">
-          <img src="/logo-512.png" alt="logo" className="logo-img" />
-          <div className="brand-info">
-            <div className="brand-name">achou.net.br</div>
-            <div className="brand-tagline">Radar de Compra Inteligente</div>
+          {/* Removido o width: 40 para aceitar os 80px do Global CSS */}
+          <img src="/logo-512.png" alt="logo" />
+          <div>
+            <div style={{ fontWeight: 700 }}>achou.net.br</div>
+            <div style={{ fontSize: 12, color: '#7b8794' }}>Radar de Compra Inteligente</div>
           </div>
         </div>
       </header>
