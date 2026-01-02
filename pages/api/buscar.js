@@ -51,7 +51,7 @@ export default async function handler(req, res) {
             Escreva aqui o panorama geral e recomendações práticas.
 
             [AVISO_LEGAL]
-            Esta análise é baseada em informações públicas e deve ser utilizada apenas como apoio à tomada de decisão. Não nos responsabilizamos pela compra final.`
+             Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.`
           },
           { 
             role: "user", 
