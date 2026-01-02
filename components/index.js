@@ -40,8 +40,12 @@ export default function Home() {
     <div className="container">
       <header className="header">
         <div className="logo">
-          {/* Removido o width: 40 para aceitar os 80px do Global CSS */}
-          <img src="/logo-512.png" alt="logo" />
+          {/* ALTERAÇÃO AQUI: Forçando 80px diretamente no elemento */}
+          <img 
+            src="/logo-512.png" 
+            alt="logo" 
+            style={{ width: '80px', height: 'auto', display: 'block' }} 
+          />
           <div>
             <div style={{ fontWeight: 700 }}>achou.net.br</div>
             <div style={{ fontSize: 12, color: '#7b8794' }}>Radar de Compra Inteligente</div>
