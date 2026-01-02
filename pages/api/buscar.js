@@ -30,15 +30,15 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um robô analista de dados especializado em consumo. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo. 
-            
-            DIRETRIZ DE PESQUISA IMPORTANTE:
-            Ao pesquisar dados para os Cards de [CONFIABILIDADE] e [SUPORTE]:
-            1. Tente encontrar informações específicas sobre o modelo ranqueado.
-            2. Se a pesquisa pelo modelo específico não retornar resultados conclusivos, você deve OBRIGATORIAMENTE realizar a pesquisa baseada na MARCA do produto.
-            3. No relatório, se usar dados da marca, mencione: "Baseado no histórico da marca [Nome]".
-            
-            Não escreva introduções. Vá direto para as tags.
+            content: `Você é um robô analista de mercado e suporte técnico. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo.
+
+            PROTOCOLO DE PESQUISA (FALLBACK OBRIGATÓRIO):
+            1. Para cada um dos 3 modelos escolhidos no [CARD_1_INDICADOS], você deve buscar:
+               a) Histórico de reclamações e confiabilidade.
+               b) Rede de suporte e peças em ${cidade}.
+            2. REGRA DE OURO: Se o modelo específico for muito novo, raro ou não possuir dados suficientes, você deve IMEDIATAMENTE pesquisar e apresentar os dados da MARCA/FABRICANTE.
+            3. No texto, deixe claro: "Análise baseada no histórico da marca [Nome]" caso o fallback seja ativado.
+            4. Nunca retorne "dados não encontrados". Se o modelo falhar, a marca é a fonte oficial.
 
             [CARD_1_INDICADOS]
             1. Marca/Modelo A | Nota: X.X | Faixa: R$ X
@@ -46,24 +46,24 @@ export default async function handler(req, res) {
             3. Marca/Modelo C | Nota: X.X | Faixa: R$ X
 
             [CARD_2_RECLAMACOES]
-            1. Status de reclamações/vendas para o modelo 1 (ou marca, se modelo sem dados)
-            2. Status de reclamações/vendas para o modelo 2 (ou marca, se modelo sem dados)
-            3. Status de reclamações/vendas para o modelo 3 (ou marca, se modelo sem dados)
+            1. Análise detalhada de confiabilidade do 1º modelo (ou de sua marca).
+            2. Análise detalhada de confiabilidade do 2º modelo (ou de sua marca).
+            3. Análise detalhada de confiabilidade do 3º modelo (ou de sua marca).
 
             [CARD_3_SUPORTE]
-            1. Status da rede de manutenção em ${cidade} para o modelo 1 (ou marca, se modelo sem dados)
-            2. Status da rede de manutenção em ${cidade} para o modelo 2 (ou marca, se modelo sem dados)
-            3. Status da rede de manutenção em ${cidade} para o modelo 3 (ou marca, se modelo sem dados)
+            1. Rede de atendimento e peças em ${cidade} para o 1º modelo (ou sua marca).
+            2. Rede de atendimento e peças em ${cidade} para o 2º modelo (ou sua marca).
+            3. Rede de atendimento e peças em ${cidade} para o 3º modelo (ou sua marca).
 
             [DETALHAMENTO_MERCADO]
-            Escreva aqui o panorama geral e recomendações práticas.
+            Panorama geral e dicas para o comprador de ${produto} em ${cidade}.
 
             [AVISO_LEGAL]
-            Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.`
+            Esta análise é baseada em informações públicas e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador.`
           },
           { 
             role: "user", 
-            content: `Analise detalhadamente ${produto} (${categoria}) em ${cidade}. Verifique o ranking dos 3 melhores e, para cada um, analise a confiabilidade nacional e a presença de suporte técnico/peças em ${cidade}.` 
+            content: `Execute a análise de ${produto} (${categoria}) em ${cidade}. Lembre-se: se o modelo for novo ou sem histórico, use os dados da marca para garantir que os Cards 2 e 3 estejam completos.` 
           }
         ]
       }),
