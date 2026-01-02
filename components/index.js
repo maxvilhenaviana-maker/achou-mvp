@@ -40,10 +40,10 @@ export default function Home() {
     <div className="container">
       <header className="header">
         <div className="logo">
-          <img src="/logo-512.png" alt="logo" />
-          <div className="brand-info">
-            <div className="brand-name">achou.net.br</div>
-            <div className="brand-tagline">Radar de Compra Inteligente</div>
+          <img src="/logo-512.png" alt="logo" style={{ width: 40 }} />
+          <div>
+            <div style={{ fontWeight: 700 }}>achou.net.br</div>
+            <div style={{ fontSize: 12, color: '#7b8794' }}>Radar de Compra Inteligente</div>
           </div>
         </div>
       </header>
@@ -53,7 +53,7 @@ export default function Home() {
           <h1>Decida melhor sua próxima compra</h1>
           <p>Análise de mercado, confiabilidade e suporte em tempo real.</p>
           <div className="searchRow" style={{ marginTop: 20 }}>
-            <input className="input" value={produto} onChange={e => setProduto(e.target.value)} placeholder="O que você procura? (ex: iPhone 15, Carro 1.0...)" />
+            <input className="input" value={produto} onChange={e => setProduto(e.target.value)} placeholder="O que você procura?" />
             <input className="input" value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Sua cidade" />
           </div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
@@ -72,7 +72,7 @@ export default function Home() {
       </main>
 
       <style jsx>{`
-        .error-box { background: #fee; color: #c00; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #fcc; }
+        .error-box { background: #fee; color: #c00; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #fcc; }
         .loading-state { text-align: center; padding: 40px; color: #666; background: #fff; border-radius: 12px; margin-top: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
       `}</style>
     </div>
