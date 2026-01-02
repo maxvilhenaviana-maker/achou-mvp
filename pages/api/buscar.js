@@ -30,15 +30,7 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um robô analista de mercado e suporte técnico. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo.
-
-            PROTOCOLO DE PESQUISA (FALLBACK OBRIGATÓRIO):
-            1. Para cada um dos 3 modelos escolhidos no [CARD_1_INDICADOS], você deve buscar:
-               a) Histórico de reclamações e confiabilidade.
-               b) Rede de suporte e peças em ${cidade}.
-            2. REGRA DE OURO: Se o modelo específico for muito novo, raro ou não possuir dados suficientes, você deve IMEDIATAMENTE pesquisar e apresentar os dados da MARCA/FABRICANTE.
-            3. No texto, deixe claro: "Análise baseada no histórico da marca [Nome]" caso o fallback seja ativado.
-            4. Nunca retorne "dados não encontrados". Se o modelo falhar, a marca é a fonte oficial.
+            content: `Você é um robô analista de dados. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo. Não escreva introduções. Vá direto para as tags.
 
             [CARD_1_INDICADOS]
             1. Marca/Modelo A | Nota: X.X | Faixa: R$ X
@@ -46,24 +38,24 @@ export default async function handler(req, res) {
             3. Marca/Modelo C | Nota: X.X | Faixa: R$ X
 
             [CARD_2_RECLAMACOES]
-            1. Análise detalhada de confiabilidade do 1º modelo (ou de sua marca).
-            2. Análise detalhada de confiabilidade do 2º modelo (ou de sua marca).
-            3. Análise detalhada de confiabilidade do 3º modelo (ou de sua marca).
+            1. Status de reclamações/vendas para o modelo 1
+            2. Status de reclamações/vendas para o modelo 2
+            3. Status de reclamações/vendas para o modelo 3
 
             [CARD_3_SUPORTE]
-            1. Rede de atendimento e peças em ${cidade} para o 1º modelo (ou sua marca).
-            2. Rede de atendimento e peças em ${cidade} para o 2º modelo (ou sua marca).
-            3. Rede de atendimento e peças em ${cidade} para o 3º modelo (ou sua marca).
+            1. Status da rede de manutenção em ${cidade} para o modelo 1
+            2. Status da rede de manutenção em ${cidade} para o modelo 2
+            3. Status da rede de manutenção em ${cidade} para o modelo 3
 
             [DETALHAMENTO_MERCADO]
-            Panorama geral e dicas para o comprador de ${produto} em ${cidade}.
+            Escreva aqui o panorama geral e recomendações práticas.
 
             [AVISO_LEGAL]
-            Esta análise é baseada em informações públicas e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador.`
+            Esta análise é baseada em informações públicas e deve ser utilizada apenas como apoio à tomada de decisão. Não nos responsabilizamos pela compra final.`
           },
           { 
             role: "user", 
-            content: `Execute a análise de ${produto} (${categoria}) em ${cidade}. Lembre-se: se o modelo for novo ou sem histórico, use os dados da marca para garantir que os Cards 2 e 3 estejam completos.` 
+            content: `Analise ${produto} (${categoria}) em ${cidade}.` 
           }
         ]
       }),
