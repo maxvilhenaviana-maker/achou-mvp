@@ -1,11 +1,17 @@
-export const config = { api: { bodyParser: true }, runtime: "nodejs" };
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Método não permitido" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Método não permitido" });
+  }
 
-  const apiKey = process.env.OPENAI_API_KEY; // Lendo da Vercel
+  const apiKey = process.env.OPENAI_API_KEY;
   const { produto, cidade, categoria } = req.body || {};
 
   if (!produto || !cidade || !categoria) {
@@ -20,7 +26,7 @@ export default async function handler(req, res) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini-search-preview",
+        model: "gpt-4o-mini-search-preview", // O modelo de busca não aceita 'temperature'
         messages: [
           { 
             role: "system", 
@@ -53,16 +59,19 @@ export default async function handler(req, res) {
             content: `Realize a análise integrada com notas para ${produto} em ${cidade}.` 
           }
         ],
-        temperature: 0.3,
+        // Removido o campo temperature para evitar erro de compatibilidade
       }),
     });
 
     const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
+    
+    if (data.error) {
+      return res.status(500).json({ error: data.error.message });
+    }
 
     return res.status(200).json({ relatorio: data.choices[0].message.content });
 
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno", details: err.message });
+    return res.status(500).json({ error: "Erro interno no servidor" });
   }
 }
