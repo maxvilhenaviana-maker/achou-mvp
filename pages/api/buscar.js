@@ -30,7 +30,15 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é um robô analista de dados. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo. Não escreva introduções. Vá direto para as tags.
+            content: `Você é um robô analista de dados especializado em consumo. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo. 
+            
+            DIRETRIZ DE PESQUISA IMPORTANTE:
+            Ao pesquisar dados para os Cards de [CONFIABILIDADE] e [SUPORTE]:
+            1. Tente encontrar informações específicas sobre o modelo ranqueado.
+            2. Se a pesquisa pelo modelo específico não retornar resultados conclusivos, você deve OBRIGATORIAMENTE realizar a pesquisa baseada na MARCA do produto.
+            3. No relatório, se usar dados da marca, mencione: "Baseado no histórico da marca [Nome]".
+            
+            Não escreva introduções. Vá direto para as tags.
 
             [CARD_1_INDICADOS]
             1. Marca/Modelo A | Nota: X.X | Faixa: R$ X
@@ -38,24 +46,24 @@ export default async function handler(req, res) {
             3. Marca/Modelo C | Nota: X.X | Faixa: R$ X
 
             [CARD_2_RECLAMACOES]
-            1. Status de reclamações/vendas para o modelo 1
-            2. Status de reclamações/vendas para o modelo 2
-            3. Status de reclamações/vendas para o modelo 3
+            1. Status de reclamações/vendas para o modelo 1 (ou marca, se modelo sem dados)
+            2. Status de reclamações/vendas para o modelo 2 (ou marca, se modelo sem dados)
+            3. Status de reclamações/vendas para o modelo 3 (ou marca, se modelo sem dados)
 
             [CARD_3_SUPORTE]
-            1. Status da rede de manutenção em ${cidade} para o modelo 1
-            2. Status da rede de manutenção em ${cidade} para o modelo 2
-            3. Status da rede de manutenção em ${cidade} para o modelo 3
+            1. Status da rede de manutenção em ${cidade} para o modelo 1 (ou marca, se modelo sem dados)
+            2. Status da rede de manutenção em ${cidade} para o modelo 2 (ou marca, se modelo sem dados)
+            3. Status da rede de manutenção em ${cidade} para o modelo 3 (ou marca, se modelo sem dados)
 
             [DETALHAMENTO_MERCADO]
             Escreva aqui o panorama geral e recomendações práticas.
 
             [AVISO_LEGAL]
-             Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.`
+            Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.`
           },
           { 
             role: "user", 
-            content: `Analise ${produto} (${categoria}) em ${cidade}.` 
+            content: `Analise detalhadamente ${produto} (${categoria}) em ${cidade}. Verifique o ranking dos 3 melhores e, para cada um, analise a confiabilidade nacional e a presença de suporte técnico/peças em ${cidade}.` 
           }
         ]
       }),
