@@ -1,0 +1,17 @@
+{
+  "name": "Achou! Radar Local",
+  "short_name": "Achou!",
+  "description": "Encontre utilidades perto de você instantaneamente",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F9FB",
+  "theme_color": "#0F2133",
+  "icons": [
+    {
+      "src": "/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
