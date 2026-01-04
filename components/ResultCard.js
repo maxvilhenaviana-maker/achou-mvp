@@ -1,68 +1,61 @@
-import React from 'react';
-
-export default function ResultCard({ item, highlight }) {
-  // Função para copiar os dados do anúncio como texto simples
-  const copiarAnuncio = (e) => {
-    e.preventDefault();
-
-    if (!item) return;
-
-    try {
-      // Criamos uma lista de textos ignorando campos técnicos (como imagens ou links)
-      const camposParaCopiar = [
-        `Título: ${item.title || 'N/A'}`,
-        `Preço: R$ ${item.price || '—'}`,
-        `Local: ${item.location || '—'}`,
-        `Data: ${item.date || '—'}`,
-        `Análise: ${item.analysis || ''}`,
-        `Link: ${item.link || ''}`
-      ];
-
-      const textoFinal = camposParaCopiar.join('\n');
-      
-      navigator.clipboard.writeText(textoFinal);
-      alert("📋 Dados do anúncio copiados!");
-    } catch (err) {
-      console.error("Erro ao copiar:", err);
-      alert("Não foi possível copiar os dados.");
-    }
+export default function ResultCard({ content }) {
+  const extract = (tag) => {
+    const regex = new RegExp(`\\[${tag}\\]:?\\s*(.*)`, 'i');
+    const match = content.match(regex);
+    return match ? match[1].trim() : "N/A";
   };
 
-  if (!item) return null;
+  const local = {
+    nome: extract("NOME"),
+    endereco: extract("ENDERECO"),
+    status: extract("STATUS"),
+    distancia: extract("DISTANCIA"),
+    telefone: extract("TELEFONE"),
+    motivo: extract("POR_QUE")
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(local.endereco);
+    alert("📍 Endereço copiado! Agora abra seu GPS e cole.");
+  };
+
+  const shareWA = () => {
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📏 ${local.distancia}\n\nEncontrado via achou.net.br`);
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+  };
 
   return (
-    <div className="card" style={{ border: highlight ? '2px solid #28d07e' : '1px solid #eee', padding: '15px', borderRadius: '8px', marginBottom: '10px', backgroundColor: '#fff' }}>
-      <div style={{ flex: 1 }}>
-        <p style={{ fontWeight: 'bold', fontSize: '1.1rem', margin: '0 0 5px 0' }}>{item.title}</p>
-        <p style={{ color: '#28d07e', fontWeight: 'bold', fontSize: '1.2rem', margin: '0 0 5px 0' }}>
-          {item.price ? `R$ ${item.price}` : 'Consultar preço'}
-        </p>
-        <p style={{ fontSize: '0.85rem', color: '#666' }}>
-          {item.location || 'Local não informado'} • {item.date || 'Data não informada'}
-        </p>
-        <p style={{ marginTop: '10px', fontSize: '0.95rem', lineHeight: '1.4' }}>{item.analysis}</p>
+    <div className="card-animation">
+      <div className="card">
+        <div className="status-badge">{local.status}</div>
+        <h2 className="title">{local.nome}</h2>
+        <p className="motivo">{local.motivo}</p>
         
-        {highlight && (
-          <span style={{ color: '#28d07e', fontWeight: '700', display: 'block', marginTop: '10px' }}>
-            🔥 Melhor oferta encontrada!
-          </span>
-        )}
+        <div className="info-section">
+          <div className="info-item"><strong>📍 Endereço:</strong> {local.endereco}</div>
+          <div className="info-item"><strong>📏 Distância:</strong> {local.distancia}</div>
+          <div className="info-item"><strong>📞 Tel:</strong> {local.telefone}</div>
+        </div>
+
+        <div className="actions">
+          <button className="btn-gps" onClick={copyToClipboard}>📋 Copiar Endereço</button>
+          <button className="btn-wa" onClick={shareWA}>📱 Enviar WhatsApp</button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end', marginTop: '15px' }}>
-        <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ width: '100%' }}>
-          <button style={{ width: '100%', padding: '8px', backgroundColor: '#0f2133', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Ver anúncio original
-          </button>
-        </a>
-
-        <span
-          onClick={copiarAnuncio}
-          style={{ cursor: 'pointer', fontSize: '0.8rem', color: '#0070f3', textDecoration: 'underline' }}
-        >
-          Copiar dados do anúncio
-        </span>
-      </div>
+      <style jsx>{`
+        .card-animation { animation: slideUp 0.4s ease-out; margin-top: 25px; }
+        .card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative; border: 1px solid #f0f0f0; }
+        .status-badge { position: absolute; top: 15px; right: 15px; background: #28d07e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; }
+        .title { margin: 0 0 10px 0; color: #0F2133; font-size: 1.5rem; padding-right: 60px; }
+        .motivo { color: #666; font-size: 14px; margin-bottom: 20px; font-style: italic; }
+        .info-section { background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+        .info-item { margin-bottom: 8px; font-size: 14px; }
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-gps { background: #0F2133; color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .btn-wa { background: #25D366; color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
     </div>
   );
 }
