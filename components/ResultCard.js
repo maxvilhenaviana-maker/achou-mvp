@@ -1,68 +1,174 @@
+import React from 'react';
+
 export default function ResultCard({ content }) {
-  const extract = (tag) => {
-    const regex = new RegExp(`\\[${tag}\\]:?\\s*(.*)`, 'i');
-    const match = content.match(regex);
-    return match ? match[1].trim() : "Informação não disponível";
+  let local = {};
+  
+  // Tenta converter o texto da IA em Objeto JSON real
+  try {
+    local = JSON.parse(content);
+  } catch (e) {
+    // Fallback caso a IA falhe no JSON (muito raro agora)
+    local = {
+      nome: "Erro na leitura",
+      endereco: "Tente novamente",
+      status: "Erro",
+      motivo: "Não foi possível estruturar os dados.",
+      telefone: "",
+      distancia: ""
+    };
+  }
+
+  const copyToClipboard = () => {
+    if (local.endereco && local.endereco !== "Não informado") {
+      navigator.clipboard.writeText(local.endereco);
+      alert("📋 Endereço copiado!");
+    } else {
+      alert("Endereço não disponível para cópia.");
+    }
   };
 
-  const local = {
-    nome: extract("NOME"),
-    endereco: extract("ENDERECO"),
-    status: extract("STATUS"),
-    distancia: extract("DISTANCIA"),
-    telefone: extract("TELEFONE"),
-    motivo: extract("POR_QUE")
+  const shareWA = () => {
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📞 ${local.telefone}\n\nVia achou.net.br`);
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
   return (
-    <div className="card">
+    <div className="card-container">
+      {/* Cabeçalho do Card */}
       <div className="card-header">
-        <h2 className="local-name">{local.nome}</h2>
-        <span className="badge">Aberto</span>
+        <h2 className="card-title">{local.nome}</h2>
+        <span className={`status-badge ${local.status?.toLowerCase().includes('fechado') ? 'fechado' : 'aberto'}`}>
+          {local.status}
+        </span>
       </div>
 
-      <p className="description">{local.motivo}</p>
+      <p className="card-reason">{local.motivo}</p>
 
-      {/* BOTÕES POSICIONADOS CONFORME SOLICITADO */}
-      <div className="action-buttons">
-        <button className="btn-copy" onClick={() => {
-          navigator.clipboard.writeText(local.endereco);
-          alert("Endereço copiado!");
-        }}>📋 Copiar Endereço</button>
-        
-        <button className="btn-wa" onClick={() => {
-          const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n\nEncontrado via achou.net.br`);
-          window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-        }}>📱 WhatsApp</button>
+      {/* ÁREA DOS BOTÕES (Corrigida para ficar dentro do card) */}
+      <div className="buttons-row">
+        <button onClick={copyToClipboard} className="btn btn-dark">
+          📋 Copiar Endereço
+        </button>
+        <button onClick={shareWA} className="btn btn-green">
+          📱 WhatsApp
+        </button>
       </div>
 
-      <div className="info-grid">
-        <div className="info-item"><strong>📍 Endereço:</strong> {local.endereco}</div>
-        <div className="info-item"><strong>📏 Distância:</strong> {local.distancia}</div>
-        <div className="info-item"><strong>📞 Tel:</strong> {local.telefone}</div>
+      {/* Detalhes Técnicos */}
+      <div className="details-box">
+        <div className="detail-row">
+          <span className="icon">📍</span>
+          <span>{local.endereco}</span>
+        </div>
+        <div className="detail-row">
+          <span className="icon">📏</span>
+          <span>{local.distancia}</span>
+        </div>
+        <div className="detail-row">
+          <span className="icon">📞</span>
+          <span>{local.telefone}</span>
+        </div>
       </div>
 
       <style jsx>{`
-        .card { 
-          background: #fff; border-radius: 20px; padding: 20px; margin-top: 25px;
-          border: 1px solid #eee; box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        /* Container principal - Garante que nada saia daqui */
+        .card-container {
+          background-color: #ffffff;
+          border-radius: 16px;
+          padding: 20px;
+          margin-top: 20px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+          border: 1px solid #f0f0f0;
+          display: flex;
+          flex-direction: column; /* Força layout vertical */
+          width: 100%;
+          box-sizing: border-box; /* Impede padding de estourar largura */
+          animation: slideUp 0.5s ease;
         }
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-        .local-name { font-size: 1.3rem; margin: 0; color: #0f2133; flex: 1; }
-        .badge { background: #28d07e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
-        .description { font-size: 14px; color: #666; margin-bottom: 20px; line-height: 1.4; }
-        
-        .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-        .action-buttons button { 
-          border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 12px;
+
+        .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 10px;
+          gap: 10px;
+        }
+
+        .card-title {
+          margin: 0;
+          font-size: 1.25rem;
+          color: #0F2133;
+          font-weight: 800;
+          line-height: 1.2;
+        }
+
+        .status-badge {
+          font-size: 0.75rem;
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-weight: bold;
+          white-space: nowrap;
+          text-transform: uppercase;
+        }
+        .aberto { background: #E6FFFA; color: #28D07E; }
+        .fechado { background: #FFF5F5; color: #F56565; }
+
+        .card-reason {
+          font-size: 0.9rem;
+          color: #666;
+          margin-bottom: 20px;
+          line-height: 1.5;
+        }
+
+        /* Botões lado a lado ocupando 50% cada */
+        .buttons-row {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 20px;
+          width: 100%;
+        }
+
+        .btn {
+          flex: 1; /* Crescem igualmente */
+          padding: 12px;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 0.9rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
           transition: opacity 0.2s;
         }
-        .btn-copy { background: #0f2133; color: white; }
-        .btn-wa { background: #25d366; color: white; }
+        .btn:active { opacity: 0.8; }
+        .btn-dark { background: #0F2133; color: white; }
+        .btn-green { background: #25D366; color: white; }
+
+        .details-box {
+          background: #F8F9FB;
+          border-radius: 8px;
+          padding: 15px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .detail-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          font-size: 0.9rem;
+          color: #333;
+        }
         
-        .info-grid { background: #f8f9fb; padding: 15px; border-radius: 15px; }
-        .info-item { font-size: 13px; margin-bottom: 8px; color: #333; }
-        .info-item:last-child { margin-bottom: 0; }
+        .icon { min-width: 20px; }
+
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
     </div>
   );
