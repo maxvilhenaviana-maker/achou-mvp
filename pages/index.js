@@ -1,36 +1,58 @@
-import { useState } from 'react';
-import AnalysisReport from '../components/AnalysisReport';
+import { useState, useEffect } from 'react';
+import ResultCard from '../components/ResultCard';
 
-const Spinner = () => (
-  <div className="spinner">
-    <style jsx>{`
-      .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #28d07e; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; margin-right: 10px; }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    `}</style>
-  </div>
-);
+const CATEGORIAS = [
+  { id: 'Farmácia', icon: '💊' },
+  { id: 'Restaurante', icon: '🍴' },
+  { id: 'Mercado', icon: '🛒' },
+  { id: 'Padaria', icon: '🍞' },
+  { id: 'Posto', icon: '⛽' },
+  { id: 'Lazer', icon: '🌳' }
+];
 
 export default function Home() {
-  const [produto, setProduto] = useState('');
-  const [cidade, setCidade] = useState('');
+  const [buscaLivre, setBuscaLivre] = useState('');
+  const [localizacao, setLocalizacao] = useState(''); // Pode ser "Cidade/Bairro" ou "Lat/Long"
   const [loading, setLoading] = useState(false);
-  const [relatorio, setRelatorio] = useState('');
-  const [error, setError] = useState(null);
+  const [resultado, setResultado] = useState(null);
+  const [detectando, setDetectando] = useState(false);
 
-  async function handleSearch(categoria) {
-    if (!produto || !cidade) { setError('Por favor, preencha o produto e a cidade.'); return; }
-    setError(null); setLoading(true); setRelatorio('');
+  // Geolocalização Automática ao abrir
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      setDetectando(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setLocalizacao(`${latitude}, ${longitude}`);
+          setDetectando(false);
+        },
+        (error) => {
+          console.error("Erro ao obter localização", error);
+          setDetectando(false);
+        }
+      );
+    }
+  }, []);
+
+  async function handleSearch(termo) {
+    const query = termo || buscaLivre;
+    if (!query) { alert('O que você procura?'); return; }
+    if (!localizacao) { alert('Aguarde a detecção da sua localização ou digite uma.'); return; }
+    
+    setLoading(true);
+    setResultado(null);
+    
     try {
       const resp = await fetch('/api/buscar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ produto, cidade, categoria })
+        body: JSON.stringify({ busca: query, localizacao: localizacao })
       });
       const json = await resp.json();
-      if (!resp.ok) throw new Error(json.error || 'Erro na consulta');
-      setRelatorio(json.relatorio);
+      setResultado(json.resultado);
     } catch (err) {
-      setError(err.message);
+      alert('Erro na busca local.');
     } finally {
       setLoading(false);
     }
@@ -38,47 +60,71 @@ export default function Home() {
 
   return (
     <div className="container">
-      <header className="header">
-        <div className="logo">
-          {/* ALTERAÇÃO AQUI: Forçando 80px diretamente no elemento */}
-          <img 
-            src="/logo-512.png" 
-            alt="logo" 
-            style={{ width: '80px', height: 'auto', display: 'block' }} 
-          />
-          <div>
-            <div style={{ fontWeight: 700 }}>achou.net.br</div>
-            <div style={{ fontSize: 12, color: '#7b8794' }}>Radar de Compra Inteligente</div>
-          </div>
+      <header style={{ textAlign: 'center', marginBottom: '25px' }}>
+        <img src="/logo-512.png" style={{ width: '60px' }} alt="Logo" />
+        <h1 style={{ margin: '10px 0 5px', fontSize: '1.8rem' }}>achou.net.br</h1>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+           <span style={{ fontSize: '12px', color: detectando ? '#ff9f43' : '#28d07e' }}>
+             {detectando ? '🛰️ Detectando sua posição...' : '📍 Localização Ativa'}
+           </span>
         </div>
       </header>
 
-      <main>
-        <div className="hero">
-          <h1>Decida melhor sua próxima compra</h1>
-          <p>Análise de mercado, confiabilidade e suporte em tempo real.</p>
-          <div className="searchRow" style={{ marginTop: 20 }}>
-            <input className="input" value={produto} onChange={e => setProduto(e.target.value)} placeholder="O que você procura?" />
-            <input className="input" value={cidade} onChange={e => setCidade(e.target.value)} placeholder="Sua cidade" />
-          </div>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-            <button className="btn" onClick={() => handleSearch('NOVO')} disabled={loading} style={{ flex: 1, backgroundColor: '#0f2133' }}>
-              {loading ? <Spinner /> : 'Analisar Novos'}
-            </button>
-            <button className="btn" onClick={() => handleSearch('USADO')} disabled={loading} style={{ flex: 1 }}>
-              {loading ? <Spinner /> : 'Analisar Usados'}
-            </button>
-          </div>
-        </div>
+      <div style={{ marginBottom: '20px' }}>
+        <input 
+          className="input" 
+          style={{ width: '100%', padding: '15px', boxSizing: 'border-box', textAlign: 'center', border: '1px dashed #ccc' }}
+          placeholder="Sua localização (detectada automaticamente)" 
+          value={localizacao.includes(',') ? "Localização por GPS ativa" : localizacao}
+          onChange={e => setLocalizacao(e.target.value)}
+        />
+      </div>
 
-        {error && <div className="error-box">{error}</div>}
-        {loading && <div className="loading-state"><Spinner /><p>Aguarde, nossa IA está cruzando dados de mercado e suporte...</p></div>}
-        {!loading && relatorio && <AnalysisReport content={relatorio} produto={produto} cidade={cidade} />}
-      </main>
+      <div className="grid-botoes">
+        {CATEGORIAS.map(cat => (
+          <button key={cat.id} className="btn-cat" onClick={() => handleSearch(cat.id)} disabled={loading}>
+            <div style={{ fontSize: '28px' }}>{cat.icon}</div>
+            <div style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '5px', textTransform: 'uppercase' }}>{cat.id}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="searchRow" style={{ marginTop: '20px' }}>
+        <input 
+          className="input" 
+          placeholder="Outra coisa? (ex: borracheiro)" 
+          value={buscaLivre}
+          onChange={e => setBuscaLivre(e.target.value)}
+        />
+        <button className="btn-search" onClick={() => handleSearch()} disabled={loading}>
+          {loading ? '...' : '🔍'}
+        </button>
+      </div>
+
+      {loading && (
+        <div className="loader-container">
+          <div className="spinner"></div>
+          <p>Consultando radar de proximidade...</p>
+        </div>
+      )}
+      
+      {resultado && <ResultCard content={resultado} />}
 
       <style jsx>{`
-        .error-box { background: #fee; color: #c00; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #fcc; }
-        .loading-state { text-align: center; padding: 40px; color: #666; background: #fff; border-radius: 12px; margin-top: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .grid-botoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .btn-cat {
+          background: #fff; border: 1px solid #eee; padding: 20px 10px; border-radius: 16px;
+          cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        }
+        .btn-cat:active { transform: translateY(2px); background: #f9f9f9; }
+        .searchRow { display: flex; gap: 8px; }
+        .btn-search { background: #0F2133; color: white; border: none; border-radius: 12px; width: 60px; font-size: 20px; cursor: pointer; }
+        .loader-container { text-align: center; padding: 30px; color: #666; }
+        .spinner { 
+          border: 4px solid #f3f3f3; border-top: 4px solid #28d07e; border-radius: 50%; 
+          width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
