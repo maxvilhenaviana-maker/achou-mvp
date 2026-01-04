@@ -16,16 +16,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [lat, lng] = localizacao.split(",").map(v => v.trim());
+    // Remove espaços em branco das coordenadas para evitar erros na URL
+    const coords = localizacao.replace(/\s/g, '');
+    const [lat, lng] = coords.split(",");
 
-    // 1️⃣ Google Places — Nearby Search (ordenado por proximidade)
-    const nearbyUrl =
+    // 1️⃣ Mapeamento de termos para tipos oficiais do Google (Garante precisão no bairro)
+    const tiposGoogle = {
+      'farmácia': 'pharmacy',
+      'restaurante': 'restaurant',
+      'mercado': 'supermarket',
+      'supermercado': 'supermarket',
+      'padaria': 'bakery',
+      'posto de gasolina': 'gas_station'
+    };
+
+    const termoBusca = busca.toLowerCase();
+    const typeSelected = tiposGoogle[termoBusca] || '';
+
+    // 2️⃣ Google Places — Nearby Search
+    // Usamos rankby=distance para garantir o mais próximo fisicamente
+    let nearbyUrl = 
       `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
       `?location=${lat},${lng}` +
-      `&rankby=distance` +
+      `&rankby=distance` + 
       `&opennow=true` +
-      `&keyword=${encodeURIComponent(busca)}` +
       `&key=${GOOGLE_KEY}`;
+
+    // Se for uma categoria fixa, usamos 'type'. Se for busca livre, usamos 'keyword'.
+    if (typeSelected) {
+      nearbyUrl += `&type=${typeSelected}`;
+    } else {
+      nearbyUrl += `&keyword=${encodeURIComponent(busca)}`;
+    }
 
     const nearbyResp = await fetch(nearbyUrl);
     const nearbyData = await nearbyResp.json();
@@ -38,14 +60,14 @@ export default async function handler(req, res) {
           status: "Fechado",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Nenhum estabelecimento aberto foi encontrado nas proximidades."
+          motivo: "Nenhum estabelecimento aberto foi encontrado exatamente agora perto de você."
         })
       });
     }
 
     const melhor = nearbyData.results[0];
 
-    // 2️⃣ Place Details — telefone e endereço completo
+    // 3️⃣ Place Details — Para pegar telefone e endereço formatado
     const detailsUrl =
       `https://maps.googleapis.com/maps/api/place/details/json` +
       `?place_id=${melhor.place_id}` +
@@ -56,17 +78,17 @@ export default async function handler(req, res) {
     const detailsData = await detailsResp.json();
     const place = detailsData.result || {};
 
-    // 3️⃣ Distância real (Haversine)
+    // 4️⃣ Cálculo de distância real
     const distKm = calcularDistancia(
-      lat,
-      lng,
+      parseFloat(lat),
+      parseFloat(lng),
       place.geometry?.location?.lat,
       place.geometry?.location?.lng
     );
 
-    let motivo = "Estabelecimento aberto mais próximo da sua localização.";
+    let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
 
-    // 4️⃣ OpenAI (opcional – só para explicação)
+    // 5️⃣ OpenAI para a frase de contexto
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -81,16 +103,11 @@ export default async function handler(req, res) {
             messages: [
               {
                 role: "system",
-                content:
-                  "Explique em UMA frase curta por que este local é a melhor opção imediata."
+                content: "Você é um assistente de busca local. Explique em uma única frase muito curta e direta por que este local é a melhor escolha agora."
               },
               {
                 role: "user",
-                content: JSON.stringify({
-                  nome: place.name,
-                  distancia: `${distKm} km`,
-                  status: "Aberto agora"
-                })
+                content: `Local: ${place.name}, Distância: ${distKm}km. Explique por que ir aqui.`
               }
             ]
           })
@@ -101,7 +118,6 @@ export default async function handler(req, res) {
       } catch (_) {}
     }
 
-    // 5️⃣ Retorno final (JSON PURO)
     return res.status(200).json({
       resultado: JSON.stringify({
         nome: place.name || "Não informado",
@@ -119,7 +135,6 @@ export default async function handler(req, res) {
   }
 }
 
-/* ===== UTIL ===== */
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   if (!lat2 || !lon2) return null;
   const R = 6371;
@@ -128,10 +143,11 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
   return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2);
 }
+
 function toRad(v) {
   return (v * Math.PI) / 180;
 }
