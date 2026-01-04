@@ -1,72 +1,42 @@
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
-
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+export const config = { api: { bodyParser: true } };
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Método não permitido" });
-  }
+  if (req.method !== "POST") return res.status(405).end();
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  const { produto, cidade, categoria } = req.body || {};
-
-  if (!produto || !cidade || !categoria) {
-    return res.status(400).json({ error: "Dados insuficientes." });
-  }
+  const { busca, localizacao } = req.body;
 
   try {
-    const response = await fetch(OPENAI_URL, {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: "gpt-4o-mini-search-preview",
         messages: [
           { 
             role: "system", 
-            content: `Você é um robô analista de dados. Sua resposta deve seguir RIGOROSAMENTE o formato de tags abaixo. Não escreva introduções. Vá direto para as tags.
-
-            [CARD_1_INDICADOS]
-            1. Marca/Modelo A | Nota: X.X | Faixa: R$ X
-            2. Marca/Modelo B | Nota: X.X | Faixa: R$ X
-            3. Marca/Modelo C | Nota: X.X | Faixa: R$ X
-
-            [CARD_2_RECLAMACOES]
-            1. Status de reclamações/vendas para o modelo 1
-            2. Status de reclamações/vendas para o modelo 2
-            3. Status de reclamações/vendas para o modelo 3
-
-            [CARD_3_SUPORTE]
-            1. Status da rede de manutenção em ${cidade} para o modelo 1
-            2. Status da rede de manutenção em ${cidade} para o modelo 2
-            3. Status da rede de manutenção em ${cidade} para o modelo 3
-
-            [DETALHAMENTO_MERCADO]
-            Escreva aqui o panorama geral e recomendações práticas.
-
-            [AVISO_LEGAL]
-            Esta análise é baseada em informações públicas disponíveis na internet e deve ser utilizada apenas como apoio à tomada de decisão. As informações devem ser confirmadas pelo comprador. Esta análise não possui vínculo com fabricantes, vendedores ou marcas e não se responsabiliza pela decisão final de compra, que é exclusiva do consumidor.`
+            content: `Você é o motor de busca do achou.net.br. 
+            Sua tarefa é encontrar o estabelecimento mais próximo e de melhor custo-benefício.
+            Use a localização fornecida (pode ser coordenadas ou nome de cidade).
+            
+            Retorne APENAS:
+            [NOME]: Nome do local
+            [ENDERECO]: Endereço completo (Rua, nº, Bairro)
+            [STATUS]: Aberto agora (informe até que horas) ou Fechado
+            [DISTANCIA]: Distância estimada em km ou metros
+            [TELEFONE]: Telefone (se disponível)
+            [POR_QUE]: Uma breve justificativa da escolha.`
           },
-          { 
-            role: "user", 
-            content: `Analise ${produto} (${categoria}) em ${cidade}.` 
-          }
+          { role: "user", content: `Procure por ${busca} em ${localizacao}. Foque no mais próximo.` }
         ]
       }),
     });
 
     const data = await response.json();
-    if (data.error) return res.status(500).json({ error: data.error.message });
-
-    return res.status(200).json({ relatorio: data.choices[0].message.content });
-
+    return res.status(200).json({ resultado: data.choices[0].message.content });
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno no servidor" });
+    return res.status(500).json({ error: "Erro na API" });
   }
 }
