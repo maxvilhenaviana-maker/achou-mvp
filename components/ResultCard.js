@@ -2,7 +2,7 @@ export default function ResultCard({ content }) {
   const extract = (tag) => {
     const regex = new RegExp(`\\[${tag}\\]:?\\s*(.*)`, 'i');
     const match = content.match(regex);
-    return match ? match[1].trim() : "N/A";
+    return match ? match[1].trim() : "Não identificado";
   };
 
   const local = {
@@ -16,45 +16,59 @@ export default function ResultCard({ content }) {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(local.endereco);
-    alert("📍 Endereço copiado! Agora abra seu GPS e cole.");
+    alert("📍 Endereço copiado!");
   };
 
   const shareWA = () => {
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📏 ${local.distancia}\n\nEncontrado via achou.net.br`);
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n\nEncontrado via achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
   return (
-    <div className="card-animation">
+    <div className="card-wrapper">
       <div className="card">
-        <div className="status-badge">{local.status}</div>
-        <h2 className="title">{local.nome}</h2>
-        <p className="motivo">{local.motivo}</p>
+        <div className="header-result">
+          <h2 className="title">{local.nome}</h2>
+          <div className="badge-aberto">Aberto Agora</div>
+        </div>
         
-        <div className="info-section">
-          <div className="info-item"><strong>📍 Endereço:</strong> {local.endereco}</div>
-          <div className="info-item"><strong>📏 Distância:</strong> {local.distancia}</div>
-          <div className="info-item"><strong>📞 Tel:</strong> {local.telefone}</div>
+        <p className="motivo">{local.motivo}</p>
+
+        {/* 1) BOTÕES ENTRE O CABEÇALHO E O RESULTADO */}
+        <div className="main-actions">
+          <button className="btn-action btn-copy" onClick={copyToClipboard}>
+             📋 Copiar Endereço
+          </button>
+          <button className="btn-action btn-wa" onClick={shareWA}>
+             📱 Enviar WhatsApp
+          </button>
         </div>
 
-        <div className="actions">
-          <button className="btn-gps" onClick={copyToClipboard}>📋 Copiar Endereço</button>
-          <button className="btn-wa" onClick={shareWA}>📱 Enviar WhatsApp</button>
+        <div className="details-box">
+          <div className="item"><strong>🏠 Endereço:</strong> {local.endereco}</div>
+          <div className="item"><strong>📏 Distância:</strong> {local.distancia}</div>
+          <div className="item"><strong>🕒 Status:</strong> {local.status}</div>
+          <div className="item"><strong>📞 Tel:</strong> {local.telefone}</div>
         </div>
       </div>
 
       <style jsx>{`
-        .card-animation { animation: slideUp 0.4s ease-out; margin-top: 25px; }
-        .card { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative; border: 1px solid #f0f0f0; }
-        .status-badge { position: absolute; top: 15px; right: 15px; background: #28d07e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; }
-        .title { margin: 0 0 10px 0; color: #0F2133; font-size: 1.5rem; padding-right: 60px; }
-        .motivo { color: #666; font-size: 14px; margin-bottom: 20px; font-style: italic; }
-        .info-section { background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
-        .info-item { margin-bottom: 8px; font-size: 14px; }
-        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .btn-gps { background: #0F2133; color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        .btn-wa { background: #25D366; color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .card-wrapper { margin-top: 20px; animation: fadeInUp 0.4s ease; }
+        .card { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); border: 1px solid #efefef; }
+        .header-result { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .title { font-size: 1.4rem; color: #0F2133; margin: 0; }
+        .badge-aberto { background: #28D07E; color: white; padding: 4px 10px; border-radius: 50px; font-size: 11px; font-weight: bold; }
+        .motivo { color: #666; font-size: 14px; margin-bottom: 20px; line-height: 1.4; }
+        
+        .main-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .btn-action { border: none; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-copy { background: #0F2133; color: white; }
+        .btn-wa { background: #25D366; color: white; }
+        
+        .details-box { background: #F8F9FB; padding: 15px; border-radius: 15px; }
+        .item { font-size: 13px; margin-bottom: 8px; color: #444; }
+        
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
