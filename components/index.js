@@ -17,39 +17,57 @@ export default function Home() {
   const [gpsAtivo, setGpsAtivo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
+  const [gpsNegado, setGpsNegado] = useState(false);
 
   // 📍 Captura da localização com alta precisão
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
 
-    const obterPosicao = () => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          // Salva sem espaços para evitar erros na API
-          setLocalizacao(`${lat},${lng}`);
-          setGpsAtivo(true);
-        },
-        (err) => {
-          console.error('Erro ao obter GPS:', err);
+    // Detecta status da permissão (importante para iOS)
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((res) => {
+        if (res.state === 'denied') {
+          setGpsNegado(true);
           setGpsAtivo(false);
-        },
-        { 
-          enableHighAccuracy: true, // Força GPS em vez de apenas Wi-Fi
-          timeout: 10000, 
-          maximumAge: 0  // Força localização atualizada (ignora cache)
         }
-      );
-    };
+      });
+    }
 
-    obterPosicao();
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLocalizacao(`${lat},${lng}`);
+        setGpsAtivo(true);
+        setGpsNegado(false);
+      },
+      (err) => {
+        console.error('Erro ao obter GPS:', err);
+        setGpsAtivo(false);
+        setGpsNegado(true);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
   }, []);
+
+  function abrirAjustes() {
+    window.location.href = 'app-settings:';
+  }
 
   async function handleSearch(termo) {
     const query = termo || buscaLivre;
+
     if (!query) {
       alert('O que você precisa agora?');
+      return;
+    }
+
+    if (!gpsAtivo) {
+      setGpsNegado(true);
       return;
     }
 
@@ -62,7 +80,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           busca: query,
-          localizacao: localizacao || '0,0'
+          localizacao
         })
       });
 
@@ -88,13 +106,37 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
 
+      {/* 🚨 MODAL DE GPS NEGADO */}
+      {gpsNegado && (
+        <div className="gps-modal">
+          <div className="gps-box">
+            <h2>📍 Ative sua localização</h2>
+            <p>
+              Para encontrar opções <strong>perto de você</strong>, o Achou precisa acessar sua localização.
+            </p>
+            <p className="hint">
+              Ajustes → Privacidade e Segurança → Serviços de Localização → <b>Achou</b><br />
+              Selecione <b>“Ao usar o App”</b> e ative <b>Localização Precisa</b>.
+            </p>
+            <div className="gps-actions">
+              <button onClick={abrirAjustes} className="btn btn-dark">
+                Abrir Ajustes
+              </button>
+              <button onClick={() => setGpsNegado(false)} className="btn btn-light">
+                Agora não
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="header">
         <div className="logo-area">
           <img src="/logo-512.png" alt="Achou" className="logo-img" />
           <div>
             <h1 className="app-name">achou.net.br</h1>
             <p className="gps-status">
-              {gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}
+              {gpsAtivo ? '🟢 Localização Ativada' : '⚪ Localização Desativada'}
             </p>
           </div>
         </div>
@@ -147,37 +189,61 @@ export default function Home() {
           padding: 20px;
           min-height: 100vh;
           background-color: #F8F9FB;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        .header { margin-bottom: 24px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
-        .logo-img { width: 48px; height: 48px; border-radius: 10px; }
-        .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
-        .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
-        .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .btn-icon {
-          background: white;
-          border: 1px solid #E2E8F0;
-          border-radius: 12px;
-          padding: 16px 8px;
+
+        .gps-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
           display: flex;
-          flex-direction: column;
           align-items: center;
-          cursor: pointer;
-          transition: transform 0.1s;
+          justify-content: center;
+          z-index: 999;
         }
-        .btn-icon:active { transform: scale(0.95); background: #F7FAFC; }
-        .emoji { font-size: 1.8rem; margin-bottom: 4px; }
-        .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
-        .search-bar { display: flex; gap: 8px; }
-        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; }
-        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 50px; cursor: pointer; }
-        .loading-area { text-align: center; margin-top: 30px; color: #718096; }
-        .spinner {
-          width: 24px; height: 24px; border: 3px solid #E2E8F0; border-top-color: #28D07E;
-          border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;
+
+        .gps-box {
+          background: white;
+          padding: 24px;
+          border-radius: 16px;
+          max-width: 340px;
+          text-align: center;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .gps-box h2 {
+          margin-top: 0;
+          color: #0F2133;
+        }
+
+        .hint {
+          font-size: 0.8rem;
+          color: #555;
+          margin-top: 10px;
+        }
+
+        .gps-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+        }
+
+        .btn {
+          flex: 1;
+          padding: 12px;
+          border-radius: 10px;
+          font-weight: 600;
+          border: none;
+        }
+
+        .btn-dark {
+          background: #0F2133;
+          color: white;
+        }
+
+        .btn-light {
+          background: #E2E8F0;
+          color: #333;
+        }
       `}</style>
     </div>
   );
