@@ -1,5 +1,12 @@
-// Service Worker básico para permitir instalação PWA
+const CACHE_NAME = 'achou-cache-v1';
+
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      // Faz o cache da página inicial para permitir funcionamento offline básico
+      return cache.addAll(['/']);
+    })
+  );
   self.skipWaiting();
 });
 
@@ -8,8 +15,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Necessário para validação do PWA
-  event.respondWith(fetch(event.request).catch(() => {
-    return new Response("Offline");
-  }));
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
+  );
 });
