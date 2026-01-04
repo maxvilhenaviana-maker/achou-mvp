@@ -2,7 +2,6 @@ export const config = { api: { bodyParser: true } };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
-
   const { busca, localizacao } = req.body;
 
   try {
@@ -17,19 +16,22 @@ export default async function handler(req, res) {
         messages: [
           { 
             role: "system", 
-            content: `Você é o motor de busca do achou.net.br. 
-            Sua tarefa é encontrar o estabelecimento mais próximo e de melhor custo-benefício.
-            Use a localização fornecida (pode ser coordenadas ou nome de cidade).
+            content: `Você é o buscador oficial do achou.net.br.
+            REGRAS CRÍTICAS:
+            1. JAMAIS retorne um estabelecimento que esteja FECHADO agora. Apenas locais abertos.
+            2. Se o local mais próximo estiver fechado, busque o próximo aberto, mesmo que um pouco mais longe.
+            3. Você DEVE fornecer o endereço completo. Nunca responda N/A para endereço.
+            4. Se não encontrar um telefone, escreva "Não informado".
             
-            Retorne APENAS:
+            Retorne RIGOROSAMENTE:
             [NOME]: Nome do local
-            [ENDERECO]: Endereço completo (Rua, nº, Bairro)
-            [STATUS]: Aberto agora (informe até que horas) ou Fechado
-            [DISTANCIA]: Distância estimada em km ou metros
-            [TELEFONE]: Telefone (se disponível)
-            [POR_QUE]: Uma breve justificativa da escolha.`
+            [ENDERECO]: Rua, número e bairro (obrigatório)
+            [STATUS]: Aberto agora (informe até que horas)
+            [DISTANCIA]: Distância estimada
+            [TELEFONE]: Telefone
+            [POR_QUE]: Justificativa curta.`
           },
-          { role: "user", content: `Procure por ${busca} em ${localizacao}. Foque no mais próximo.` }
+          { role: "user", content: `Encontre ${busca} aberto agora perto de ${localizacao}.` }
         ]
       }),
     });
@@ -37,6 +39,6 @@ export default async function handler(req, res) {
     const data = await response.json();
     return res.status(200).json({ resultado: data.choices[0].message.content });
   } catch (err) {
-    return res.status(500).json({ error: "Erro na API" });
+    return res.status(500).json({ error: "Erro na busca" });
   }
 }
