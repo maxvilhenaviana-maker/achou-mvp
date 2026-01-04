@@ -12,33 +12,28 @@ const CATEGORIAS = [
 
 export default function Home() {
   const [buscaLivre, setBuscaLivre] = useState('');
-  const [localizacao, setLocalizacao] = useState(''); // Pode ser "Cidade/Bairro" ou "Lat/Long"
+  const [localizacao, setLocalizacao] = useState('');
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [detectando, setDetectando] = useState(false);
 
-  // Geolocalização Automática ao abrir
   useEffect(() => {
     if ("geolocation" in navigator) {
       setDetectando(true);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setLocalizacao(`${latitude}, ${longitude}`);
+        (pos) => {
+          setLocalizacao(`${pos.coords.latitude}, ${pos.coords.longitude}`);
           setDetectando(false);
         },
-        (error) => {
-          console.error("Erro ao obter localização", error);
-          setDetectando(false);
-        }
+        () => setDetectando(false),
+        { enableHighAccuracy: true }
       );
     }
   }, []);
 
   async function handleSearch(termo) {
     const query = termo || buscaLivre;
-    if (!query) { alert('O que você procura?'); return; }
-    if (!localizacao) { alert('Aguarde a detecção da sua localização ou digite uma.'); return; }
+    if (!query) return;
     
     setLoading(true);
     setResultado(null);
@@ -47,12 +42,15 @@ export default function Home() {
       const resp = await fetch('/api/buscar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ busca: query, localizacao: localizacao })
+        body: JSON.stringify({ 
+          busca: query, 
+          localizacao: localizacao || "minha localização atual" 
+        })
       });
       const json = await resp.json();
       setResultado(json.resultado);
     } catch (err) {
-      alert('Erro na busca local.');
+      alert('Erro na conexão.');
     } finally {
       setLoading(false);
     }
@@ -60,71 +58,48 @@ export default function Home() {
 
   return (
     <div className="container">
-      <header style={{ textAlign: 'center', marginBottom: '25px' }}>
-        <img src="/logo-512.png" style={{ width: '60px' }} alt="Logo" />
-        <h1 style={{ margin: '10px 0 5px', fontSize: '1.8rem' }}>achou.net.br</h1>
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
-           <span style={{ fontSize: '12px', color: detectando ? '#ff9f43' : '#28d07e' }}>
-             {detectando ? '🛰️ Detectando sua posição...' : '📍 Localização Ativa'}
-           </span>
-        </div>
+      <header style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <img src="/logo-512.png" style={{ width: '60px', borderRadius: '12px' }} alt="Logo" />
+        <h1 style={{ margin: '10px 0 0', fontSize: '1.6rem', fontWeight: '800' }}>achou.net.br</h1>
+        <p style={{ fontSize: '12px', color: detectando ? '#ff9f43' : '#28d07e' }}>
+          {detectando ? '🛰️ Localizando...' : '📍 Radar Ativo'}
+        </p>
       </header>
 
-      <div style={{ marginBottom: '20px' }}>
-        <input 
-          className="input" 
-          style={{ width: '100%', padding: '15px', boxSizing: 'border-box', textAlign: 'center', border: '1px dashed #ccc' }}
-          placeholder="Sua localização (detectada automaticamente)" 
-          value={localizacao.includes(',') ? "Localização por GPS ativa" : localizacao}
-          onChange={e => setLocalizacao(e.target.value)}
-        />
-      </div>
-
-      <div className="grid-botoes">
+      <div className="grid-buttons">
         {CATEGORIAS.map(cat => (
-          <button key={cat.id} className="btn-cat" onClick={() => handleSearch(cat.id)} disabled={loading}>
-            <div style={{ fontSize: '28px' }}>{cat.icon}</div>
-            <div style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '5px', textTransform: 'uppercase' }}>{cat.id}</div>
+          <button key={cat.id} className="btn-cat" onClick={() => handleSearch(cat.id)}>
+            <span style={{ fontSize: '24px' }}>{cat.icon}</span>
+            <span style={{ fontSize: '11px', fontWeight: '700' }}>{cat.id}</span>
           </button>
         ))}
       </div>
 
-      <div className="searchRow" style={{ marginTop: '20px' }}>
+      <div className="search-bar">
         <input 
-          className="input" 
-          placeholder="Outra coisa? (ex: borracheiro)" 
+          className="input-free"
+          placeholder="Outra busca..." 
           value={buscaLivre}
           onChange={e => setBuscaLivre(e.target.value)}
         />
-        <button className="btn-search" onClick={() => handleSearch()} disabled={loading}>
-          {loading ? '...' : '🔍'}
-        </button>
+        <button className="btn-go" onClick={() => handleSearch()}>🔍</button>
       </div>
 
-      {loading && (
-        <div className="loader-container">
-          <div className="spinner"></div>
-          <p>Consultando radar de proximidade...</p>
-        </div>
-      )}
+      {loading && <div className="loader">Buscando o mais próximo...</div>}
       
       {resultado && <ResultCard content={resultado} />}
 
       <style jsx>{`
-        .grid-botoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .btn-cat {
-          background: #fff; border: 1px solid #eee; padding: 20px 10px; border-radius: 16px;
-          cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        .container { max-width: 450px; margin: 0 auto; padding: 20px; }
+        .grid-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .btn-cat { 
+          background: white; border: 1px solid #eee; padding: 15px 5px; border-radius: 15px;
+          display: flex; flex-direction: column; align-items: center; cursor: pointer;
         }
-        .btn-cat:active { transform: translateY(2px); background: #f9f9f9; }
-        .searchRow { display: flex; gap: 8px; }
-        .btn-search { background: #0F2133; color: white; border: none; border-radius: 12px; width: 60px; font-size: 20px; cursor: pointer; }
-        .loader-container { text-align: center; padding: 30px; color: #666; }
-        .spinner { 
-          border: 4px solid #f3f3f3; border-top: 4px solid #28d07e; border-radius: 50%; 
-          width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 10px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .search-bar { display: flex; margin-top: 15px; gap: 8px; }
+        .input-free { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; outline: none; }
+        .btn-go { background: #0F2133; border: none; border-radius: 10px; padding: 0 15px; color: white; cursor: pointer; }
+        .loader { text-align: center; margin-top: 20px; color: #666; font-size: 14px; }
       `}</style>
     </div>
   );
