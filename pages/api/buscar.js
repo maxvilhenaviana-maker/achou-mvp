@@ -7,15 +7,20 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   const { busca, localizacao } = req.body;
+
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
-  if (!GOOGLE_KEY) return res.status(500).json({ error: "GOOGLEMAPS_KEY ausente" });
+  if (!GOOGLE_KEY) {
+    return res.status(500).json({ error: "GOOGLEMAPS_KEY não configurada" });
+  }
 
   try {
+    // Remove espaços em branco das coordenadas para evitar erros na URL
     const coords = localizacao.replace(/\s/g, '');
     const [lat, lng] = coords.split(",");
 
+    // 1️⃣ Mapeamento de termos para tipos oficiais do Google (Garante precisão no bairro)
     const tiposGoogle = {
       'farmácia': 'pharmacy',
       'restaurante': 'restaurant',
@@ -28,6 +33,8 @@ export default async function handler(req, res) {
     const termoBusca = busca.toLowerCase();
     const typeSelected = tiposGoogle[termoBusca] || '';
 
+    // 2️⃣ Google Places — Nearby Search
+    // Usamos rankby=distance para garantir o mais próximo fisicamente
     let nearbyUrl = 
       `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
       `?location=${lat},${lng}` +
@@ -35,6 +42,7 @@ export default async function handler(req, res) {
       `&opennow=true` +
       `&key=${GOOGLE_KEY}`;
 
+    // Se for uma categoria fixa, usamos 'type'. Se for busca livre ou Borracharia, refinamos a keyword.
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
@@ -54,36 +62,59 @@ export default async function handler(req, res) {
           status: "Fechado",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Nenhum serviço de pneus e rodas aberto foi encontrado agora perto de você."
+          motivo: "Nenhum estabelecimento aberto foi encontrado exatamente agora perto de você."
         })
       });
     }
 
     const melhor = nearbyData.results[0];
-    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${melhor.place_id}&fields=name,formatted_address,formatted_phone_number,geometry&key=${GOOGLE_KEY}`;
-    
+
+    // 3️⃣ Place Details — Para pegar telefone e endereço formatado
+    const detailsUrl =
+      `https://maps.googleapis.com/maps/api/place/details/json` +
+      `?place_id=${melhor.place_id}` +
+      `&fields=name,formatted_address,formatted_phone_number,geometry` +
+      `&key=${GOOGLE_KEY}`;
+
     const detailsResp = await fetch(detailsUrl);
     const detailsData = await detailsResp.json();
     const place = detailsData.result || {};
 
-    const distKm = calcularDistancia(parseFloat(lat), parseFloat(lng), place.geometry?.location?.lat, place.geometry?.location?.lng);
+    // 4️⃣ Cálculo de distância real
+    const distKm = calcularDistancia(
+      parseFloat(lat),
+      parseFloat(lng),
+      place.geometry?.location?.lat,
+      place.geometry?.location?.lng
+    );
 
-    let motivo = "Especialista em pneus e rodas, aberto e próximo de você.";
+    let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
 
+    // 5️⃣ OpenAI para a frase de contexto
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_KEY}`,
+          },
           body: JSON.stringify({
             model: "gpt-4o-mini",
             temperature: 0.3,
             messages: [
-              { role: "system", content: "Você é um assistente de busca local focado em utilidade. Se a busca for borracharia, foque apenas em pneus e rodas. Explique em uma frase curta por que este é o melhor local agora." },
-              { role: "user", content: `Local: ${place.name}, Distância: ${distKm}km. Foco: Pneus e Rodas.` }
+              {
+                role: "system",
+                content: "Você é um assistente de busca local de utilidade. Responda em uma frase curta e direta por que este local é a melhor escolha agora."
+              },
+              {
+                role: "user",
+                content: `Local: ${place.name}, Distância: ${distKm}km. O usuário buscou por: ${busca}.`
+              }
             ]
           })
         });
+
         const aiData = await aiResp.json();
         motivo = aiData.choices?.[0]?.message?.content || motivo;
       } catch (_) {}
@@ -94,21 +125,31 @@ export default async function handler(req, res) {
         nome: place.name || "Não informado",
         endereco: place.formatted_address || "Não informado",
         status: "Aberto agora",
-        distancia: distKm ? `${distKm} km` : "—",
+        distancia: distKm ? `${distKm} km` : "Não informado",
         telefone: place.formatted_phone_number || "Não informado",
         motivo
       })
     });
+
   } catch (err) {
-    return res.status(500).json({ error: "Erro interno" });
+    console.error(err);
+    return res.status(500).json({ error: "Erro interno no servidor" });
   }
 }
 
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   if (!lat2 || !lon2) return null;
   const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
   return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2);
+}
+
+function toRad(v) {
+  return (v * Math.PI) / 180;
 }
