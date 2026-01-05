@@ -16,11 +16,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Remove espaços em branco das coordenadas para evitar erros na URL
     const coords = localizacao.replace(/\s/g, '');
     const [lat, lng] = coords.split(",");
 
-    // 1️⃣ Mapeamento de termos para tipos oficiais do Google (Garante precisão no bairro)
+    // 1️⃣ Mapeamento de tipos oficiais. 
+    // Borracharia não entra aqui para forçar busca por palavra-chave "borracharia",
+    // o que filtra melhor por pneus/rodas do que o tipo genérico "car_repair".
     const tiposGoogle = {
       'farmácia': 'pharmacy',
       'restaurante': 'restaurant',
@@ -33,8 +34,6 @@ export default async function handler(req, res) {
     const termoBusca = busca.toLowerCase();
     const typeSelected = tiposGoogle[termoBusca] || '';
 
-    // 2️⃣ Google Places — Nearby Search
-    // Usamos rankby=distance para garantir o mais próximo fisicamente
     let nearbyUrl = 
       `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
       `?location=${lat},${lng}` +
@@ -42,10 +41,10 @@ export default async function handler(req, res) {
       `&opennow=true` +
       `&key=${GOOGLE_KEY}`;
 
-    // Se for uma categoria fixa, usamos 'type'. Se for busca livre, usamos 'keyword'.
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
+      // Se for "borracharia", ele usará a keyword exata aqui
       nearbyUrl += `&keyword=${encodeURIComponent(busca)}`;
     }
 
@@ -60,14 +59,13 @@ export default async function handler(req, res) {
           status: "Fechado",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Nenhum estabelecimento aberto foi encontrado exatamente agora perto de você."
+          motivo: "Nenhuma borracharia ou serviço de pneus aberto foi encontrado agora perto de você."
         })
       });
     }
 
     const melhor = nearbyData.results[0];
 
-    // 3️⃣ Place Details — Para pegar telefone e endereço formatado
     const detailsUrl =
       `https://maps.googleapis.com/maps/api/place/details/json` +
       `?place_id=${melhor.place_id}` +
@@ -78,7 +76,6 @@ export default async function handler(req, res) {
     const detailsData = await detailsResp.json();
     const place = detailsData.result || {};
 
-    // 4️⃣ Cálculo de distância real
     const distKm = calcularDistancia(
       parseFloat(lat),
       parseFloat(lng),
@@ -86,9 +83,8 @@ export default async function handler(req, res) {
       place.geometry?.location?.lng
     );
 
-    let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
+    let motivo = "Este local oferece serviços de pneus e rodas e está aberto agora.";
 
-    // 5️⃣ OpenAI para a frase de contexto
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -103,7 +99,7 @@ export default async function handler(req, res) {
             messages: [
               {
                 role: "system",
-                content: "Você é um assistente de busca local. Explique em uma única frase muito curta e direta por que este local é a melhor escolha agora."
+                content: "Você é um assistente de busca local. Se o usuário busca borracharia, foque em locais de pneus e rodas. Explique em uma única frase curta por que este local é a melhor escolha."
               },
               {
                 role: "user",
