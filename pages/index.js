@@ -9,7 +9,7 @@ const CATEGORIAS = [
   { id: 'Mercado', icon: '🛒' },
   { id: 'Padaria', icon: '🍞' },
   { id: 'Posto de gasolina', icon: '⛽' },
-  { id: 'Lazer', icon: '🌳' }
+  { id: 'Borracharia', icon: '🛞' }
 ];
 
 export default function Home() {
