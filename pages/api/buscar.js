@@ -41,17 +41,16 @@ export default async function handler(req, res) {
       `&opennow=true` +
       `&key=${GOOGLE_KEY}`;
 
-    // --- MUDANÇA SIMPLIFICADA AQUI ---
+    // Lógica simplificada: Se for farmácia, usamos keyword para abranger 'drugstore' 
+    // e usamos o sinal de '-' para excluir explicitamente termos pet/veterinários.
     if (termoBusca === 'farmácia') {
-      // Usamos keyword para aceitar os dois termos e excluir veterinárias
-      nearbyUrl += `&keyword=${encodeURIComponent('pharmacy drugstore -veterinaria -pet')}`;
+      nearbyUrl += `&keyword=${encodeURIComponent('pharmacy drugstore -veterinaria -pet -dog -animal')}`;
     } else if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
       const refinedKeyword = termoBusca === 'borracharia' ? 'borracharia pneu' : busca;
       nearbyUrl += `&keyword=${encodeURIComponent(refinedKeyword)}`;
     }
-    // ---------------------------------
 
     const nearbyResp = await fetch(nearbyUrl);
     const nearbyData = await nearbyResp.json();
