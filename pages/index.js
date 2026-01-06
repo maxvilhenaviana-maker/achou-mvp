@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 
-// --- COMPONENTE INTERNO: ResultCard (Consolidado para evitar erro de importação) ---
+// --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content }) {
   let local = {};
   try {
@@ -60,7 +60,7 @@ function ResultCard({ content }) {
   );
 }
 
-// --- COMPONENTE INTERNO: InstallBanner (Consolidado) ---
+// --- COMPONENTE INTERNO: InstallBanner ---
 function InstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -164,6 +164,9 @@ export default function Home() {
         </div>
       </header>
 
+      {/* NOVO SUBTÍTULO ADICIONADO ABAIXO */}
+      <h2 className="section-title">Encontrar perto de mim:</h2>
+
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
           <button key={cat.id} className="btn-icon" onClick={() => handleSearch(cat.id)} disabled={loading}>
@@ -202,6 +205,9 @@ export default function Home() {
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
+        
+        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; text-align: left; }
+
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
         .btn-icon:active { transform: scale(0.95); background: #F7FAFC; }
