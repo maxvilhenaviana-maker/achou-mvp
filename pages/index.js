@@ -32,7 +32,6 @@ function ResultCard({ content }) {
       </div>
       <p className="card-reason">{local.motivo}</p>
       
-      {/* BOTÕES DO CARD CORRIGIDOS */}
       <div className="card-buttons-row">
         <button onClick={copyToClipboard} className="btn-action btn-copy">📋 Copiar Endereço</button>
         <button onClick={shareWA} className="btn-action btn-whatsapp">📱 WhatsApp</button>
@@ -44,31 +43,19 @@ function ResultCard({ content }) {
         <div className="detail-row"><span>📞</span> {local.telefone}</div>
       </div>
       <style jsx>{`
-        .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #f0f0f0; }
+        .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border: 1px solid #f0f0f0; text-align: left; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px; }
         .card-title { margin: 0; font-size: 1.2rem; color: #0F2133; font-weight: 800; }
         .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-transform: uppercase; }
         .aberto { background: #E6FFFA; color: #28D07E; }
         .fechado { background: #FFF5F5; color: #F56565; }
         .card-reason { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.4; }
-        
-        .card-buttons-row { display: flex; gap: 10px; margin-bottom: 20px; width: 100%; }
-        .btn-action { 
-          flex: 1; 
-          padding: 14px 8px; 
-          border: none; 
-          border-radius: 10px; 
-          font-weight: bold; 
-          cursor: pointer; 
-          font-size: 0.85rem; 
-          color: white;
-          display: block;
-        }
-        .btn-copy { background: #0F2133; }
-        .btn-whatsapp { background: #25D366; }
-        
+        .card-buttons-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn-action { flex: 1; padding: 14px 5px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.85rem; color: white; }
+        .btn-copy { background: #0F2133 !important; }
+        .btn-whatsapp { background: #25D366 !important; }
         .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
-        .detail-row { display: flex; gap: 10px; color: #333; text-align: left; }
+        .detail-row { display: flex; gap: 10px; color: #333; }
       `}</style>
     </div>
   );
@@ -116,7 +103,7 @@ export default function Home() {
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') setDeferredPrompt(null);
     } else {
-      alert("Para salvar: no Android use 'Adicionar à tela inicial' no menu do Chrome. No iPhone, use o ícone de 'Compartilhar' e 'Adicionar à Tela de Início'.");
+      alert("Para salvar este App:\n\nAndroid: Use 'Adicionar à tela inicial' no menu do Chrome.\niPhone: Use o ícone 'Compartilhar' e 'Adicionar à Tela de Início'.");
     }
   };
 
@@ -153,6 +140,7 @@ export default function Home() {
           </div>
         </div>
         
+        {/* BOTÃO CORRIGIDO PARA NÃO SOBREPOR */}
         <button className="btn-install-main" onClick={handleInstallClick}>
           📲 Salvar este App
         </button>
@@ -190,9 +178,9 @@ export default function Home() {
       {resultado && <ResultCard content={resultado} />}
       
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; text-align: center; }
-        .header { margin-bottom: 24px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 15px; }
+        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
+        .header { margin-bottom: 24px; display: flex; flex-direction: column; gap: 15px; }
+        .logo-area { display: flex; align-items: center; gap: 12px; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .title-box { text-align: left; }
         .app-name { margin: 0; font-size: 1.3rem; font-weight: 800; color: #0F2133; }
@@ -203,12 +191,12 @@ export default function Home() {
           background: #0F2133;
           color: white;
           border: none;
-          padding: 12px;
-          border-radius: 10px;
+          padding: 14px;
+          border-radius: 12px;
           font-weight: bold;
-          font-size: 0.9rem;
+          font-size: 0.95rem;
           cursor: pointer;
-          margin-bottom: 10px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
         .section-title { font-size: 1rem; color: #4A5568; margin: 20px 0 12px; font-weight: 600; text-align: left; }
@@ -219,10 +207,10 @@ export default function Home() {
         .label { font-size: 0.65rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
         
         .search-bar { display: flex; gap: 8px; }
-        .search-input { flex: 1; padding: 12px; border: 1px solid #CBD5E0; border-radius: 10px; outline: none; }
-        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; padding: 0 15px; cursor: pointer; }
+        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; outline: none; font-size: 1rem; }
+        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; padding: 0 18px; cursor: pointer; }
         
-        .loading-area { margin-top: 20px; }
+        .loading-area { margin-top: 20px; text-align: center; }
         .spinner { width: 24px; height: 24px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
