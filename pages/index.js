@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import ResultCard from '../components/ResultCard';
-import installbanner from '../components/Installbanner';
+import installbanner from '../components/installbanner';
 
 const CATEGORIAS = [
   { id: 'Farmácia', icon: '💊' },
