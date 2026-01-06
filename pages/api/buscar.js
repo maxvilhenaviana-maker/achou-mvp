@@ -35,20 +35,18 @@ export default async function handler(req, res) {
 
     // 2️⃣ Google Places — Nearby Search
     // Usamos rankby=distance para garantir o mais próximo fisicamente
-    let nearbyUrl = 
+    let nearbyUrl =
       `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
       `?location=${lat},${lng}` +
-      `&rankby=distance` + 
+      `&rankby=distance` +
       `&opennow=true` +
       `&key=${GOOGLE_KEY}`;
 
-    // Se for uma categoria fixa, usamos 'type'. Se for busca livre ou Borracharia, refinamos a keyword.
+    // Se for uma categoria fixa, usamos 'type'. Se for busca livre, usamos 'keyword'.
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
-      // Se for Borracharia, adicionamos "pneu" para filtrar serviços de rodas e pneus apenas
-      const refinedKeyword = termoBusca === 'borracharia' ? 'borracharia pneu' : busca;
-      nearbyUrl += `&keyword=${encodeURIComponent(refinedKeyword)}`;
+      nearbyUrl += `&keyword=${encodeURIComponent(busca)}`;
     }
 
     const nearbyResp = await fetch(nearbyUrl);
@@ -105,11 +103,11 @@ export default async function handler(req, res) {
             messages: [
               {
                 role: "system",
-                content: "Você é um assistente de busca local de utilidade. Responda em uma frase curta e direta por que este local é a melhor escolha agora."
+                content: "Você é um assistente de busca local. Explique em uma única frase muito curta e direta por que este local é a melhor escolha agora."
               },
               {
                 role: "user",
-                content: `Local: ${place.name}, Distância: ${distKm}km. O usuário buscou por: ${busca}.`
+                content: `Local: ${place.name}, Distância: ${distKm}km. Explique por que ir aqui.`
               }
             ]
           })
