@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import ResultCard from '../components/ResultCard';
-import InstallBanner from '../components/InstallBanner';
+import installbanner from '../components/installbanner';
 
 const CATEGORIAS = [
   { id: 'Farmácia', icon: '💊' },
@@ -95,7 +95,7 @@ export default function Home() {
 
       {resultado && <ResultCard content={resultado} />}
      
-      <InstallBanner />
+      <installbanner />
 
       <style jsx>{`
         .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
