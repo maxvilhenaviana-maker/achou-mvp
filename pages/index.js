@@ -60,46 +60,6 @@ function ResultCard({ content }) {
   );
 }
 
-// --- COMPONENTE INTERNO: InstallBanner ---
-function InstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsVisible(true);
-    });
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setIsVisible(false);
-    setDeferredPrompt(null);
-  };
-
-  if (!isVisible) return null;
-
-  return (
-    <div className="banner">
-      <div className="banner-content">
-        <span>📲 Adicionar Achou! à tela inicial?</span>
-        <button onClick={handleInstall}>Instalar</button>
-        <button onClick={() => setIsVisible(false)} className="close">✕</button>
-      </div>
-      <style jsx>{`
-        .banner { position: fixed; bottom: 20px; left: 15px; right: 15px; background: #0F2133; color: white; padding: 15px; border-radius: 12px; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .banner-content { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
-        button { background: #28D07E; border: none; color: white; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .close { background: transparent; padding: 5px; font-size: 1.2rem; }
-      `}</style>
-    </div>
-  );
-}
-
 // --- PÁGINA PRINCIPAL ---
 const CATEGORIAS = [
   { id: 'Farmácia', icon: '💊' },
@@ -116,8 +76,20 @@ export default function Home() {
   const [gpsAtivo, setGpsAtivo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
+  
+  // Estados para a instalação (PWA)
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
 
   useEffect(() => {
+    // Escuta o evento de instalação do navegador
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    });
+
+    // Detecta localização
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -129,10 +101,19 @@ export default function Home() {
     );
   }, []);
 
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBtn(false);
+    }
+    setDeferredPrompt(null);
+  };
+
   async function handleSearch(termo) {
     const query = termo || buscaLivre;
     if (!query) return alert('O que você precisa agora?');
-
     setLoading(true);
     setResultado(null);
 
@@ -157,14 +138,20 @@ export default function Home() {
       <header className="header">
         <div className="logo-area">
           <img src="/logo-512.png" alt="Achou" className="logo-img" />
-          <div>
+          <div className="title-container">
             <h1 className="app-name">achou.net.br</h1>
             <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
           </div>
         </div>
+
+        {/* BOTÃO "SALVAR ESTE APP" - Aparece apenas se o navegador permitir instalação */}
+        {showInstallBtn && (
+          <button className="install-app-btn" onClick={handleInstallClick}>
+            📲 Salvar este App na tela inicial
+          </button>
+        )}
       </header>
 
-      {/* NOVO SUBTÍTULO ADICIONADO ABAIXO */}
       <h2 className="section-title">Encontrar perto de mim:</h2>
 
       <div className="grid-menu">
@@ -196,20 +183,32 @@ export default function Home() {
 
       {resultado && <ResultCard content={resultado} />}
       
-      <InstallBanner />
-
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .header { margin-bottom: 24px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
+        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: -apple-system, sans-serif; }
+        .header { margin-bottom: 24px; text-align: center; }
+        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 15px; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
         
-        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; text-align: left; }
+        /* Estilo do Botão Salvar */
+        .install-app-btn {
+          background: #EBF8FF;
+          color: #2B6CB0;
+          border: 1px solid #BEE3F8;
+          padding: 10px 20px;
+          border-radius: 20px;
+          font-weight: 700;
+          font-size: 0.85rem;
+          cursor: pointer;
+          width: 100%;
+          animation: pulse 2s infinite;
+        }
+
+        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
 
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
+        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .btn-icon:active { transform: scale(0.95); background: #F7FAFC; }
         .emoji { font-size: 1.8rem; margin-bottom: 4px; }
         .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
@@ -218,7 +217,13 @@ export default function Home() {
         .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; font-size: 1.2rem; }
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.02); }
+          100% { transform: scale(1); }
+        }
       `}</style>
     </div>
   );
