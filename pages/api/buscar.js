@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     const [lat, lng] = coords.split(",");
 
     const tiposGoogle = {
-      'farmácia': 'drugstore',
+      'farmácia': 'pharmacy',
       'restaurante': 'restaurant',
       'mercado': 'supermarket',
       'supermercado': 'supermarket',
