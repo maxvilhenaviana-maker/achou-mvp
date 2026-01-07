@@ -10,7 +10,7 @@ const CLIENTES_ACHOU = [
     termoMatch: 'farmácia', // Termo que o usuário clica ou digita
     nome: "Drogaria Teste de Indicação",
     endereco: "Rua Alessandra Salum Teste, 181",
-    bairro: "Buritis",
+    bairro: "Burits",
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     telefone: "(31) 98823-4548",
