@@ -164,7 +164,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* NOVO SUBTÍTULO ADICIONADO ABAIXO */}
       <h2 className="section-title">Encontrar perto de mim:</h2>
 
       <div className="grid-menu">
@@ -195,6 +194,20 @@ export default function Home() {
       )}
 
       {resultado && <ResultCard content={resultado} />}
+
+      {/* --- PÉ DE PÁGINA (FOOTER) ADICIONADO --- */}
+      <footer className="footer-info">
+        <p className="footer-title">Importante:</p>
+        <p>
+          <strong>1) Para salvar este App:</strong><br />
+          No Android: Use 'Adicionar à tela inicial' no menu do Chrome.<br />
+          No iPhone: Use o ícone 'Compartilhar' e 'Adicionar à Tela de Início'.
+        </p>
+        <p>
+          <strong>2)</strong> A indicação de "Aberto" é extraída do status do estabelecimento no Google, 
+          e pode não estar atualizado. Então convém ligar antes para confirmar.
+        </p>
+      </footer>
       
       <InstallBanner />
 
@@ -218,6 +231,12 @@ export default function Home() {
         .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; font-size: 1.2rem; }
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        
+        /* ESTILOS DO FOOTER */
+        .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; line-height: 1.5; }
+        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .footer-info p { margin-bottom: 12px; }
+
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
