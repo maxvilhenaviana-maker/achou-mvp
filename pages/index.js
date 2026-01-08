@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Head from 'next/head';
+import * as gtag from '../lib/gtag';
 
 // --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content }) {
@@ -12,12 +12,16 @@ function ResultCard({ content }) {
 
   const copyToClipboard = () => {
     if (local.endereco) {
+      // EVENTO: Copiou endereço
+      gtag.event({ action: 'conversion_gps', category: 'Engagement', label: local.nome });
       navigator.clipboard.writeText(local.endereco);
       alert("📋 Endereço copiado para o GPS!");
     }
   };
 
   const shareWA = () => {
+    // EVENTO: Clicou no WhatsApp
+    gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📞 ${local.telefone}\n\nEncontrado via achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
@@ -77,6 +81,10 @@ function InstallBanner() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
+    
+    // EVENTO: Usuário aceitou ou recusou instalar o App
+    gtag.event({ action: 'pwa_install_click', category: 'System', label: outcome });
+
     if (outcome === 'accepted') setIsVisible(false);
     setDeferredPrompt(null);
   };
@@ -88,7 +96,7 @@ function InstallBanner() {
       <div className="banner-content">
         <span>📲 Adicionar Achou! à tela inicial?</span>
         <button onClick={handleInstall}>Instalar</button>
-        <button onClick={() => setIsVisible(false)} className="close">✕</button>
+        <button onClick={() => { setIsVisible(false); gtag.event({ action: 'pwa_close', category: 'System' }); }} className="close">✕</button>
       </div>
       <style jsx>{`
         .banner { position: fixed; bottom: 20px; left: 15px; right: 15px; background: #0F2133; color: white; padding: 15px; border-radius: 12px; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
@@ -123,8 +131,12 @@ export default function Home() {
       (pos) => {
         setLocalizacao(`${pos.coords.latitude},${pos.coords.longitude}`);
         setGpsAtivo(true);
+        gtag.event({ action: 'gps_success', category: 'System' });
       },
-      () => setGpsAtivo(false),
+      () => {
+        setGpsAtivo(false);
+        gtag.event({ action: 'gps_denied', category: 'System' });
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
@@ -136,6 +148,9 @@ export default function Home() {
     setLoading(true);
     setResultado(null);
 
+    // EVENTO: Iniciou busca
+    gtag.event({ action: 'search_start', category: 'Engagement', label: query });
+
     try {
       const resp = await fetch('/api/buscar', {
         method: 'POST',
@@ -143,8 +158,11 @@ export default function Home() {
         body: JSON.stringify({ busca: query, localizacao: localizacao || '0,0' })
       });
       const json = await resp.json();
-      if (json.resultado) setResultado(json.resultado);
-      else alert('Nenhum resultado próximo encontrado.');
+      if (json.resultado) {
+        setResultado(json.resultado);
+      } else {
+        alert('Nenhum resultado próximo encontrado.');
+      }
     } catch (err) {
       alert('Erro de conexão. Verifique sua internet.');
     } finally {
@@ -165,7 +183,6 @@ export default function Home() {
       </header>
 
       <h2 className="section-title">Encontrar perto de mim:</h2>
-
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
           <button key={cat.id} className="btn-icon" onClick={() => handleSearch(cat.id)} disabled={loading}>
@@ -195,7 +212,6 @@ export default function Home() {
 
       {resultado && <ResultCard content={resultado} />}
 
-      {/* --- PÉ DE PÁGINA (FOOTER) ADICIONADO --- */}
       <footer className="footer-info">
         <p className="footer-title">Importante:</p>
         <p>
@@ -218,9 +234,7 @@ export default function Home() {
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
-        
         .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; text-align: left; }
-
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
         .btn-icon:active { transform: scale(0.95); background: #F7FAFC; }
@@ -231,12 +245,9 @@ export default function Home() {
         .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; font-size: 1.2rem; }
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
-        
-        /* ESTILOS DO FOOTER */
         .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; line-height: 1.5; }
         .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
         .footer-info p { margin-bottom: 12px; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
