@@ -1,9 +1,16 @@
 import '../styles/globals.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Script from 'next/script';
+import { Analytics } from '@vercel/analytics/react';
+import * as gtag from '../lib/gtag';
 
 export default function App({ Component, pageProps }) {
+  const router = useRouter();
+
   useEffect(() => {
+    // 1. Registro do Service Worker (PWA)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('/sw.js').then(
@@ -12,7 +19,16 @@ export default function App({ Component, pageProps }) {
         );
       });
     }
-  }, []);
+
+    // 2. Rastreio automático de mudança de páginas (GA4)
+    const handleRouteChange = (url) => {
+      gtag.pageview(url);
+    };
+    router.events.on('routeChangeComplete', handleRouteChange);
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+    };
+  }, [router.events]);
 
   return (
     <>
@@ -26,7 +42,34 @@ export default function App({ Component, pageProps }) {
         <meta name="apple-mobile-web-app-title" content="Achou!" />
         <link rel="apple-touch-icon" href="/logo-512.png" />
       </Head>
+
+      {/* 3. Script Principal do Google Analytics */}
+      <Script
+        strategy="afterInteractive"
+        src={`https://www.googletagmanager.com/gtag/js?id=${gtag.GA_TRACKING_ID}`}
+      />
+
+      {/* 4. Inicialização da função gtag e dataLayer */}
+      <Script
+        id="gtag-init"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = function(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${gtag.GA_TRACKING_ID}', {
+              page_path: window.location.pathname,
+            });
+          `,
+        }}
+      />
+
+      {/* Renderização da Página Atual */}
       <Component {...pageProps} />
+      
+      {/* 5. Vercel Analytics (Métricas técnicas) */}
+      <Analytics />
     </>
   );
 }
