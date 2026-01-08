@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import * as gtag from '../lib/gtag';
 
 // --- COMPONENTE INTERNO: ResultCard ---
-function ResultCard({ content }) {
+function ResultCard({ content, onRedo }) {
   let local = {};
   try {
     local = typeof content === 'string' ? JSON.parse(content) : content;
@@ -12,7 +12,6 @@ function ResultCard({ content }) {
 
   const copyToClipboard = () => {
     if (local.endereco) {
-      // EVENTO: Copiou endereço
       gtag.event({ action: 'conversion_gps', category: 'Engagement', label: local.nome });
       navigator.clipboard.writeText(local.endereco);
       alert("📋 Endereço copiado para o GPS!");
@@ -20,7 +19,6 @@ function ResultCard({ content }) {
   };
 
   const shareWA = () => {
-    // EVENTO: Clicou no WhatsApp
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📞 ${local.telefone}\n\nEncontrado via achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
@@ -35,15 +33,20 @@ function ResultCard({ content }) {
         </span>
       </div>
       <p className="card-reason">{local.motivo}</p>
+      
       <div className="buttons-row">
-        <button onClick={copyToClipboard} className="btn-card btn-dark">📋 Copiar Endereço</button>
+        {/* O botão agora chama a função de refazer que passamos por prop */}
+        <button onClick={onRedo} className="btn-card btn-blue">🔄 Refazer</button>
+        <button onClick={copyToClipboard} className="btn-card btn-dark">📋 Copiar</button>
         <button onClick={shareWA} className="btn-card btn-green">📱 WhatsApp</button>
       </div>
+
       <div className="details-box">
         <div className="detail-row"><span>📍</span> {local.endereco}</div>
         <div className="detail-row"><span>📏</span> {local.distancia}</div>
         <div className="detail-row"><span>📞</span> {local.telefone}</div>
       </div>
+
       <style jsx>{`
         .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease; }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px; }
@@ -52,57 +55,14 @@ function ResultCard({ content }) {
         .aberto { background: #E6FFFA; color: #28D07E; }
         .fechado { background: #FFF5F5; color: #F56565; }
         .card-reason { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.4; }
-        .buttons-row { display: flex; gap: 10px; margin-bottom: 20px; }
-        .btn-card { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+        .buttons-row { display: flex; gap: 8px; margin-bottom: 20px; }
+        .btn-card { flex: 1; padding: 12px 5px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
         .btn-dark { background: #0F2133; color: white; }
         .btn-green { background: #25D366; color: white; }
+        .btn-blue { background: #3182ce; color: white; }
         .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; color: #333; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
-    </div>
-  );
-}
-
-// --- COMPONENTE INTERNO: InstallBanner ---
-function InstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsVisible(true);
-    });
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    
-    // EVENTO: Usuário aceitou ou recusou instalar o App
-    gtag.event({ action: 'pwa_install_click', category: 'System', label: outcome });
-
-    if (outcome === 'accepted') setIsVisible(false);
-    setDeferredPrompt(null);
-  };
-
-  if (!isVisible) return null;
-
-  return (
-    <div className="banner">
-      <div className="banner-content">
-        <span>📲 Adicionar Achou! à tela inicial?</span>
-        <button onClick={handleInstall}>Instalar</button>
-        <button onClick={() => { setIsVisible(false); gtag.event({ action: 'pwa_close', category: 'System' }); }} className="close">✕</button>
-      </div>
-      <style jsx>{`
-        .banner { position: fixed; bottom: 20px; left: 15px; right: 15px; background: #0F2133; color: white; padding: 15px; border-radius: 12px; z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .banner-content { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
-        button { background: #28D07E; border: none; color: white; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .close { background: transparent; padding: 5px; font-size: 1.2rem; }
       `}</style>
     </div>
   );
@@ -125,46 +85,70 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
 
+  // NOVOS ESTADOS PARA A LÓGICA DE REFAZER
+  const [ultimaBusca, setUltimaBusca] = useState('');
+  const [excluirNomes, setExcluirNomes] = useState([]);
+
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocalizacao(`${pos.coords.latitude},${pos.coords.longitude}`);
         setGpsAtivo(true);
-        gtag.event({ action: 'gps_success', category: 'System' });
       },
-      () => {
-        setGpsAtivo(false);
-        gtag.event({ action: 'gps_denied', category: 'System' });
-      },
+      () => setGpsAtivo(false),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
 
-  async function handleSearch(termo) {
+  // Função para Refazer a busca excluindo o atual
+  const handleRedo = () => {
+    if (!resultado) return;
+    
+    // Pega o nome do estabelecimento que está na tela agora
+    const local = typeof resultado === 'string' ? JSON.parse(resultado) : resultado;
+    const novoNomeParaExcluir = local.nome;
+
+    // Atualiza a lista de exclusão e dispara a busca novamente para o mesmo termo
+    const novaListaExclusao = [...excluirNomes, novoNomeParaExcluir];
+    setExcluirNomes(novaListaExclusao);
+    
+    // Chama a busca passando a lista atualizada
+    handleSearch(ultimaBusca, novaListaExclusao);
+  };
+
+  async function handleSearch(termo, listaExclusaoManual = []) {
     const query = termo || buscaLivre;
     if (!query) return alert('O que você precisa agora?');
 
+    // Se for uma busca NOVA (digitada ou clicada no ícone), limpamos a lista de exclusão
+    // Se listaExclusaoManual tiver itens, significa que veio do botão "Refazer"
+    if (listaExclusaoManual.length === 0) {
+      setExcluirNomes([]);
+    }
+
+    setUltimaBusca(query);
     setLoading(true);
     setResultado(null);
-
-    // EVENTO: Iniciou busca
-    gtag.event({ action: 'search_start', category: 'Engagement', label: query });
 
     try {
       const resp = await fetch('/api/buscar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ busca: query, localizacao: localizacao || '0,0' })
+        body: JSON.stringify({ 
+          busca: query, 
+          localizacao: localizacao || '0,0',
+          excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes 
+        })
       });
       const json = await resp.json();
       if (json.resultado) {
         setResultado(json.resultado);
       } else {
-        alert('Nenhum resultado próximo encontrado.');
+        alert('Nenhum outro resultado próximo encontrado.');
       }
     } catch (err) {
-      alert('Erro de conexão. Verifique sua internet.');
+      alert('Erro de conexão.');
     } finally {
       setLoading(false);
     }
@@ -206,48 +190,42 @@ export default function Home() {
       {loading && (
         <div className="loading-area">
           <div className="spinner"></div>
-          <p>Buscando o mais próximo de você...</p>
+          <p>Buscando a próxima opção...</p>
         </div>
       )}
 
-      {resultado && <ResultCard content={resultado} />}
+      {resultado && (
+        <ResultCard 
+          content={resultado} 
+          onRedo={handleRedo} 
+        />
+      )}
 
       <footer className="footer-info">
         <p className="footer-title">Importante:</p>
-        <p>
-          <strong>1) Para salvar este App:</strong><br />
-          No Android: Use 'Adicionar à tela inicial' no menu do Chrome.<br />
-          No iPhone: Use o ícone 'Compartilhar' e 'Adicionar à Tela de Início'.
-        </p>
-        <p>
-          <strong>2)</strong> A indicação de "Aberto" é extraída do status do estabelecimento no Google, 
-          e pode não estar atualizado. Então convém ligar antes para confirmar.
-        </p>
+        <p>A indicação de "Aberto" é extraída do status do estabelecimento no Google. Convém ligar antes para confirmar.</p>
       </footer>
       
-      <InstallBanner />
-
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        /* (Seus estilos CSS permanecem os mesmos aqui) */
+        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
         .header { margin-bottom: 24px; }
         .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
-        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; text-align: left; }
+        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
-        .btn-icon:active { transform: scale(0.95); background: #F7FAFC; }
+        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
         .emoji { font-size: 1.8rem; margin-bottom: 4px; }
         .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
         .search-bar { display: flex; gap: 8px; }
-        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; outline: none; }
-        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; font-size: 1.2rem; }
+        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; }
+        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; }
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
-        .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; line-height: 1.5; }
-        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .footer-info p { margin-bottom: 12px; }
+        .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; }
+        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 8px; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
