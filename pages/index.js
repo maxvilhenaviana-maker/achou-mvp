@@ -35,7 +35,6 @@ function ResultCard({ content, onRedo }) {
       <p className="card-reason">{local.motivo}</p>
       
       <div className="buttons-row">
-        {/* O botão agora chama a função de refazer que passamos por prop */}
         <button onClick={onRedo} className="btn-card btn-blue">🔄 Refazer</button>
         <button onClick={copyToClipboard} className="btn-card btn-dark">📋 Copiar</button>
         <button onClick={shareWA} className="btn-card btn-green">📱 WhatsApp</button>
@@ -84,8 +83,6 @@ export default function Home() {
   const [gpsAtivo, setGpsAtivo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
-
-  // NOVOS ESTADOS PARA A LÓGICA DE REFAZER
   const [ultimaBusca, setUltimaBusca] = useState('');
   const [excluirNomes, setExcluirNomes] = useState([]);
 
@@ -101,19 +98,12 @@ export default function Home() {
     );
   }, []);
 
-  // Função para Refazer a busca excluindo o atual
   const handleRedo = () => {
     if (!resultado) return;
-    
-    // Pega o nome do estabelecimento que está na tela agora
     const local = typeof resultado === 'string' ? JSON.parse(resultado) : resultado;
     const novoNomeParaExcluir = local.nome;
-
-    // Atualiza a lista de exclusão e dispara a busca novamente para o mesmo termo
     const novaListaExclusao = [...excluirNomes, novoNomeParaExcluir];
     setExcluirNomes(novaListaExclusao);
-    
-    // Chama a busca passando a lista atualizada
     handleSearch(ultimaBusca, novaListaExclusao);
   };
 
@@ -121,8 +111,6 @@ export default function Home() {
     const query = termo || buscaLivre;
     if (!query) return alert('O que você precisa agora?');
 
-    // Se for uma busca NOVA (digitada ou clicada no ícone), limpamos a lista de exclusão
-    // Se listaExclusaoManual tiver itens, significa que veio do botão "Refazer"
     if (listaExclusaoManual.length === 0) {
       setExcluirNomes([]);
     }
@@ -203,11 +191,23 @@ export default function Home() {
 
       <footer className="footer-info">
         <p className="footer-title">Importante:</p>
-        <p>A indicação de "Aberto" é extraída do status do estabelecimento no Google. Convém ligar antes para confirmar.</p>
+        <div className="footer-content">
+          <p>
+            <strong>1) Para salvar este App:</strong><br />
+            No Android: Use 'Adicionar à tela inicial' no menu do Chrome.<br />
+            No iPhone: Use o ícone 'Compartilhar' e 'Adicionar à Tela de Início'.
+          </p>
+          <p>
+            <strong>2)</strong> A indicação de "Aberto" é extraída do status do estabelecimento no Google, 
+            e pode não estar atualizado. Então convém ligar antes para confirmar.
+          </p>
+          <p>
+            <strong>3)</strong> Verifique abaixo do título do aplicativo "achou.net.br" se a localização ou GPS estão ativados, antes de fazer a busca.
+          </p>
+        </div>
       </footer>
       
       <style jsx>{`
-        /* (Seus estilos CSS permanecem os mesmos aqui) */
         .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
         .header { margin-bottom: 24px; }
         .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
@@ -225,7 +225,9 @@ export default function Home() {
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
         .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; }
-        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 8px; }
+        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 12px; font-size: 0.85rem; }
+        .footer-content p { margin-bottom: 12px; line-height: 1.5; }
+        .footer-content p:last-child { margin-bottom: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
