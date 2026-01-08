@@ -10,7 +10,7 @@ const CLIENTES_ACHOU = [
     termoMatch: 'farmácia', 
     nome: "Drogaria Teste de Indicação",
     endereco: "Rua Alessandra Salum Teste, 181",
-    bairro: "Burits",
+    bairro: "Burits", // Mantido conforme solicitado
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     telefone: "(31) 98823-4548",
@@ -21,10 +21,8 @@ const CLIENTES_ACHOU = [
 
 export default async function handler(req, res) {
   // --- BLOQUEIO GEOGRÁFICO ---
-  // A Vercel identifica o país de origem via cabeçalho.
   const country = req.headers['x-vercel-ip-country'] || 'BR';
   
-  // Ignora o bloqueio se estiver em ambiente de desenvolvimento local
   if (process.env.NODE_ENV !== 'development' && country !== 'BR') {
     return res.status(403).json({ 
       error: "Acesso restrito ao território brasileiro.",
@@ -34,7 +32,8 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).end();
 
-  const { busca, localizacao } = req.body;
+  // Recebe 'excluir' do front-end (lista de nomes já mostrados)
+  const { busca, localizacao, excluir = [] } = req.body;
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
@@ -45,7 +44,7 @@ export default async function handler(req, res) {
     const [lat, lng] = coords.split(",");
     const termoBusca = busca.toLowerCase();
 
-    // 2️⃣ IDENTIFICAR O BAIRRO DO USUÁRIO (Geocoding Reverso)
+    // 2️⃣ IDENTIFICAR O BAIRRO DO USUÁRIO
     const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
     const geoResp = await fetch(geoUrl);
     const geoData = await geoResp.json();
@@ -60,9 +59,11 @@ export default async function handler(req, res) {
     }
 
     // 3️⃣ LÓGICA DE PRIORIZAÇÃO (CHECK CLIENTE)
+    // Agora verifica se o cliente premium já não foi exibido (não está na lista excluir)
     const clienteMatch = CLIENTES_ACHOU.find(c => 
       (termoBusca.includes(c.termoMatch) || termoBusca === c.tipo) && 
-      bairroUsuario.toLowerCase() === c.bairro.toLowerCase()
+      bairroUsuario.toLowerCase() === c.bairro.toLowerCase() &&
+      !excluir.includes(c.nome)
     );
 
     if (clienteMatch) {
@@ -101,20 +102,23 @@ export default async function handler(req, res) {
     const nearbyResp = await fetch(nearbyUrl);
     const nearbyData = await nearbyResp.json();
 
-    if (!nearbyData.results || nearbyData.results.length === 0) {
+    // FILTRAGEM: Encontra o primeiro resultado que NÃO esteja na lista de exclusão
+    const listaResultados = nearbyData.results || [];
+    const melhor = listaResultados.find(place => !excluir.includes(place.name));
+
+    if (!melhor) {
       return res.status(200).json({
         resultado: JSON.stringify({
           nome: "Nenhum local encontrado",
           endereco: "Não informado",
-          status: "Fechado",
+          status: "Fechado ou Esgotado",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Nenhum estabelecimento aberto foi encontrado exatamente agora perto de você."
+          motivo: "Nenhum outro estabelecimento aberto foi encontrado perto de você nesta busca."
         })
       });
     }
 
-    const melhor = nearbyData.results[0];
     const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${melhor.place_id}&fields=name,formatted_address,formatted_phone_number,geometry&key=${GOOGLE_KEY}`;
     const detailsResp = await fetch(detailsUrl);
     const detailsData = await detailsResp.json();
@@ -146,9 +150,7 @@ export default async function handler(req, res) {
         });
         const aiData = await aiResp.json();
         motivo = aiData.choices?.[0]?.message?.content || motivo;
-      } catch (_) {
-        // Fallback silencioso caso a AI falhe
-      }
+      } catch (_) { }
     }
 
     return res.status(200).json({
@@ -168,10 +170,9 @@ export default async function handler(req, res) {
   }
 }
 
-// Função Auxiliar: Cálculo de Haversine para distância real entre pontos
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   if (!lat2 || !lon2) return null;
-  const R = 6371; // Raio da Terra em km
+  const R = 6371; 
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
