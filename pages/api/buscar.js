@@ -3,23 +3,35 @@ export const config = {
   maxDuration: 60,
 };
 
-// 1️⃣ BANCO DE DADOS DE CLIENTES PRIORITÁRIOS
+// 1️⃣ BANCO DE DADOS DE CLIENTES PRIORITÁRIOS (Belo Horizonte)
 const CLIENTES_ACHOU = [
   {
-    tipo: 'pharmacy', // Mapeado conforme o tipo do Google
-    termoMatch: 'farmácia', // Termo que o usuário clica ou digita
+    tipo: 'pharmacy', 
+    termoMatch: 'farmácia', 
     nome: "Drogaria Teste de Indicação",
     endereco: "Rua Alessandra Salum Teste, 181",
     bairro: "Burits",
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     telefone: "(31) 98823-4548",
-    distancia: "0.2 km", // Simulado por ser local
+    distancia: "0.2 km", 
     motivo: "Este estabelecimento é um parceiro premium no seu bairro com atendimento garantido."
   }
 ];
 
 export default async function handler(req, res) {
+  // --- BLOQUEIO GEOGRÁFICO ---
+  // A Vercel identifica o país de origem via cabeçalho.
+  const country = req.headers['x-vercel-ip-country'] || 'BR';
+  
+  // Ignora o bloqueio se estiver em ambiente de desenvolvimento local
+  if (process.env.NODE_ENV !== 'development' && country !== 'BR') {
+    return res.status(403).json({ 
+      error: "Acesso restrito ao território brasileiro.",
+      message: "Este aplicativo está disponível apenas no Brasil." 
+    });
+  }
+
   if (req.method !== "POST") return res.status(405).end();
 
   const { busca, localizacao } = req.body;
@@ -40,7 +52,6 @@ export default async function handler(req, res) {
     
     let bairroUsuario = "";
     if (geoData.results && geoData.results.length > 0) {
-      // O Google geralmente retorna o bairro no componente 'sublocality' ou 'neighborhood'
       const addressComponents = geoData.results[0].address_components;
       const neighborhood = addressComponents.find(c => 
         c.types.includes("sublocality") || c.types.includes("neighborhood")
@@ -54,7 +65,6 @@ export default async function handler(req, res) {
       bairroUsuario.toLowerCase() === c.bairro.toLowerCase()
     );
 
-    // Se houver match de TIPO e BAIRRO, retorna o cliente imediatamente
     if (clienteMatch) {
       return res.status(200).json({
         resultado: JSON.stringify({
@@ -68,7 +78,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4️⃣ BUSCA EXTERNA (Caso não seja cliente ou bairro diferente)
+    // 4️⃣ BUSCA EXTERNA NO GOOGLE MAPS
     const tiposGoogle = {
       'farmácia': 'pharmacy',
       'restaurante': 'restaurant',
@@ -119,6 +129,7 @@ export default async function handler(req, res) {
 
     let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
 
+    // 5️⃣ CONSULTA AO CÉREBRO (AI) PARA O MOTIVO
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -128,14 +139,16 @@ export default async function handler(req, res) {
             model: "gpt-4o-mini",
             temperature: 0.3,
             messages: [
-              { role: "system", content: "Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha." },
+              { role: "system", content: "Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser o mais próximo." },
               { role: "user", content: `Local: ${place.name}, Distância: ${distKm}km. O usuário buscou por: ${busca}.` }
             ]
           })
         });
         const aiData = await aiResp.json();
         motivo = aiData.choices?.[0]?.message?.content || motivo;
-      } catch (_) {}
+      } catch (_) {
+        // Fallback silencioso caso a AI falhe
+      }
     }
 
     return res.status(200).json({
@@ -155,11 +168,15 @@ export default async function handler(req, res) {
   }
 }
 
+// Função Auxiliar: Cálculo de Haversine para distância real entre pontos
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   if (!lat2 || !lon2) return null;
-  const R = 6371;
+  const R = 6371; // Raio da Terra em km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return (R * c).toFixed(2);
 }
