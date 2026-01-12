@@ -10,7 +10,7 @@ const CLIENTES_ACHOU = [
     termoMatch: 'farmácia', 
     nome: "Drogaria Teste de Indicação",
     endereco: "Rua Alessandra Salum Teste, 181",
-    bairro: "Burits", // Mantido conforme solicitado
+    bairro: "Burits", 
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     telefone: "(31) 98823-4548",
@@ -59,7 +59,6 @@ export default async function handler(req, res) {
     }
 
     // 3️⃣ LÓGICA DE PRIORIZAÇÃO (CHECK CLIENTE)
-    // Agora verifica se o cliente premium já não foi exibido (não está na lista excluir)
     const clienteMatch = CLIENTES_ACHOU.find(c => 
       (termoBusca.includes(c.termoMatch) || termoBusca === c.tipo) && 
       bairroUsuario.toLowerCase() === c.bairro.toLowerCase() &&
@@ -82,11 +81,13 @@ export default async function handler(req, res) {
     // 4️⃣ BUSCA EXTERNA NO GOOGLE MAPS
     const tiposGoogle = {
       'farmácia': 'pharmacy',
+      'farmacia': 'pharmacy',
       'restaurante': 'restaurant',
-      'mercado': 'supermarket',
+      'mercado': 'supermarket', // Prioriza Supermercados como solicitado
       'supermercado': 'supermarket',
       'padaria': 'bakery',
-      'posto de gasolina': 'gas_station'
+      'posto de gasolina': 'gas_station',
+      'lazer': 'park'
     };
 
     const typeSelected = tiposGoogle[termoBusca] || '';
@@ -95,6 +96,7 @@ export default async function handler(req, res) {
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
+      // Ajuste fino para borracharia
       const refinedKeyword = termoBusca === 'borracharia' ? 'borracharia pneu' : busca;
       nearbyUrl += `&keyword=${encodeURIComponent(refinedKeyword)}`;
     }
@@ -102,19 +104,51 @@ export default async function handler(req, res) {
     const nearbyResp = await fetch(nearbyUrl);
     const nearbyData = await nearbyResp.json();
 
-    // FILTRAGEM: Encontra o primeiro resultado que NÃO esteja na lista de exclusão
-    const listaResultados = nearbyData.results || [];
+    let listaResultados = nearbyData.results || [];
+
+    // --- NOVA LÓGICA DE FILTRAGEM INTELIGENTE ---
+    // Remove resultados que não condizem com a urgência ou categoria correta
+    listaResultados = listaResultados.filter(place => {
+      const nome = place.name.toLowerCase();
+      // O Google retorna um array de types, juntamos para facilitar a busca
+      const types = (place.types || []).join(' ').toLowerCase();
+
+      // FILTRO 1: Se buscou FARMÁCIA, proibir VETERINÁRIA
+      if (termoBusca.includes('farmácia') || termoBusca.includes('farmacia')) {
+        const termosVet = ['veterin', 'pet ', 'petshop', 'animal', 'bicho', 'agro'];
+        // Se tiver termo de bicho no nome OU for classificado como veterinary_care
+        if (termosVet.some(t => nome.includes(t)) || types.includes('veterinary_care')) {
+          return false; // Remove da lista
+        }
+      }
+
+      // FILTRO 2: Se buscou MERCADO, proibir CONSULTORIAS/ESCRITÓRIOS
+      if (termoBusca.includes('mercado') || termoBusca.includes('supermercado')) {
+        const termosCorp = [
+          'consult', 'admin', 'advoca', 'contabil', 'imobili', 
+          'engenharia', 'marketing', 'associad', 'grupo', 'finance'
+        ];
+        if (termosCorp.some(t => nome.includes(t))) {
+          return false; // Remove da lista
+        }
+      }
+
+      return true; // Mantém o resultado se passou nos filtros
+    });
+    // ------------------------------------------------
+
+    // Encontra o primeiro resultado que NÃO esteja na lista de exclusão manual (botão Refazer)
     const melhor = listaResultados.find(place => !excluir.includes(place.name));
 
     if (!melhor) {
       return res.status(200).json({
         resultado: JSON.stringify({
-          nome: "Nenhum local encontrado",
+          nome: "Nenhum local adequado encontrado",
           endereco: "Não informado",
           status: "Fechado ou Esgotado",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Nenhum outro estabelecimento aberto foi encontrado perto de você nesta busca."
+          motivo: "Não encontramos estabelecimentos abertos correspondentes à categoria exata perto de você."
         })
       });
     }
@@ -172,7 +206,7 @@ export default async function handler(req, res) {
 
 function calcularDistancia(lat1, lon1, lat2, lon2) {
   if (!lat2 || !lon2) return null;
-  const R = 6371; 
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
