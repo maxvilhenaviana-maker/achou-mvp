@@ -10,7 +10,7 @@ const CLIENTES_ACHOU = [
     termoMatch: 'farmácia', 
     nome: "Drogaria Teste de Indicação",
     endereco: "Rua Alessandra Salum Teste, 181",
-    bairro: "Burits", 
+    bairro: "Burits", // Mantido "Burits" conforme solicitado (não alterar para Buritis)
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     telefone: "(31) 98823-4548",
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     const geoResp = await fetch(geoUrl);
     const geoData = await geoResp.json();
     
-    let bairroUsuario = "";
+    let bairroUsuario = "Desconhecido";
     if (geoData.results && geoData.results.length > 0) {
       const addressComponents = geoData.results[0].address_components;
       const neighborhood = addressComponents.find(c => 
@@ -59,6 +59,7 @@ export default async function handler(req, res) {
     }
 
     // 3️⃣ LÓGICA DE PRIORIZAÇÃO (CHECK CLIENTE)
+    // Nota: A verificação aqui compara com o bairro do array (Burits), mantendo a lógica solicitada.
     const clienteMatch = CLIENTES_ACHOU.find(c => 
       (termoBusca.includes(c.termoMatch) || termoBusca === c.tipo) && 
       bairroUsuario.toLowerCase() === c.bairro.toLowerCase() &&
@@ -73,7 +74,8 @@ export default async function handler(req, res) {
           status: clienteMatch.status,
           distancia: clienteMatch.distancia,
           telefone: clienteMatch.telefone,
-          motivo: clienteMatch.motivo
+          motivo: clienteMatch.motivo,
+          bairro_usuario: bairroUsuario // Retorna o bairro para métricas
         })
       });
     }
@@ -83,7 +85,7 @@ export default async function handler(req, res) {
       'farmácia': 'pharmacy',
       'farmacia': 'pharmacy',
       'restaurante': 'restaurant',
-      'mercado': 'supermarket', // Prioriza Supermercados como solicitado
+      'mercado': 'supermarket',
       'supermercado': 'supermarket',
       'padaria': 'bakery',
       'posto de gasolina': 'gas_station',
@@ -107,18 +109,15 @@ export default async function handler(req, res) {
     let listaResultados = nearbyData.results || [];
 
     // --- NOVA LÓGICA DE FILTRAGEM INTELIGENTE ---
-    // Remove resultados que não condizem com a urgência ou categoria correta
     listaResultados = listaResultados.filter(place => {
       const nome = place.name.toLowerCase();
-      // O Google retorna um array de types, juntamos para facilitar a busca
       const types = (place.types || []).join(' ').toLowerCase();
 
       // FILTRO 1: Se buscou FARMÁCIA, proibir VETERINÁRIA
       if (termoBusca.includes('farmácia') || termoBusca.includes('farmacia')) {
         const termosVet = ['veterin', 'pet ', 'petshop', 'animal', 'bicho', 'agro'];
-        // Se tiver termo de bicho no nome OU for classificado como veterinary_care
         if (termosVet.some(t => nome.includes(t)) || types.includes('veterinary_care')) {
-          return false; // Remove da lista
+          return false;
         }
       }
 
@@ -129,15 +128,15 @@ export default async function handler(req, res) {
           'engenharia', 'marketing', 'associad', 'grupo', 'finance'
         ];
         if (termosCorp.some(t => nome.includes(t))) {
-          return false; // Remove da lista
+          return false;
         }
       }
 
-      return true; // Mantém o resultado se passou nos filtros
+      return true;
     });
     // ------------------------------------------------
 
-    // Encontra o primeiro resultado que NÃO esteja na lista de exclusão manual (botão Refazer)
+    // Encontra o primeiro resultado que NÃO esteja na lista de exclusão manual
     const melhor = listaResultados.find(place => !excluir.includes(place.name));
 
     if (!melhor) {
@@ -148,7 +147,8 @@ export default async function handler(req, res) {
           status: "Fechado ou Esgotado",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Não encontramos estabelecimentos abertos correspondentes à categoria exata perto de você."
+          motivo: "Não encontramos estabelecimentos abertos correspondentes à categoria exata perto de você.",
+          bairro_usuario: bairroUsuario
         })
       });
     }
@@ -182,6 +182,7 @@ export default async function handler(req, res) {
             ]
           })
         });
+
         const aiData = await aiResp.json();
         motivo = aiData.choices?.[0]?.message?.content || motivo;
       } catch (_) { }
@@ -194,7 +195,8 @@ export default async function handler(req, res) {
         status: "Aberto agora",
         distancia: distKm ? `${distKm} km` : "Não informado",
         telefone: place.formatted_phone_number || "Não informado",
-        motivo
+        motivo,
+        bairro_usuario: bairroUsuario
       })
     });
 
