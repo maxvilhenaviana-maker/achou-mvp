@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server';
+
 export const config = {
   api: { bodyParser: true },
   maxDuration: 60,
@@ -13,6 +15,7 @@ const CLIENTES_ACHOU = [
     bairro: "Burits", // Mantido "Burits" conforme solicitado (não alterar para Buritis)
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
+    horario: "22:00", // Horário estático para o cliente teste
     telefone: "(31) 98823-4548",
     distancia: "0.2 km", 
     motivo: "Este estabelecimento é um parceiro premium no seu bairro com atendimento garantido."
@@ -72,6 +75,7 @@ export default async function handler(req, res) {
           nome: clienteMatch.nome,
           endereco: `${clienteMatch.endereco} - ${clienteMatch.bairro}, ${clienteMatch.cidade_estado}`,
           status: clienteMatch.status,
+          horario: clienteMatch.horario, // Retorna horário fixo
           distancia: clienteMatch.distancia,
           telefone: clienteMatch.telefone,
           motivo: clienteMatch.motivo,
@@ -94,7 +98,7 @@ export default async function handler(req, res) {
 
     const typeSelected = tiposGoogle[termoBusca] || '';
     let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&opennow=true&key=${GOOGLE_KEY}`;
-
+    
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
@@ -145,6 +149,7 @@ export default async function handler(req, res) {
           nome: "Nenhum local adequado encontrado",
           endereco: "Não informado",
           status: "Fechado ou Esgotado",
+          horario: "-",
           distancia: "—",
           telefone: "Não informado",
           motivo: "Não encontramos estabelecimentos abertos correspondentes à categoria exata perto de você.",
@@ -153,7 +158,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${melhor.place_id}&fields=name,formatted_address,formatted_phone_number,geometry&key=${GOOGLE_KEY}`;
+    // Adicionado 'opening_hours' aos campos solicitados
+    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${melhor.place_id}&fields=name,formatted_address,formatted_phone_number,geometry,opening_hours&key=${GOOGLE_KEY}`;
     const detailsResp = await fetch(detailsUrl);
     const detailsData = await detailsResp.json();
     const place = detailsData.result || {};
@@ -164,6 +170,33 @@ export default async function handler(req, res) {
       place.geometry?.location?.lat,
       place.geometry?.location?.lng
     );
+
+    // --- LÓGICA PARA EXTRAIR HORÁRIO DE FECHAMENTO ---
+    let horarioFechamento = "Consulte";
+    try {
+      if (place.opening_hours && place.opening_hours.periods) {
+        // Ajuste manual de fuso horário para o Brasil (UTC-3) aproximado para pegar o dia da semana correto
+        const now = new Date();
+        now.setHours(now.getHours() - 3); 
+        const todayDay = now.getDay(); // 0 = Domingo, 1 = Segunda...
+
+        // Busca o período de hoje
+        const period = place.opening_hours.periods.find(p => p.open && p.open.day === todayDay);
+        
+        if (period && period.close) {
+          const rawTime = period.close.time; // Ex: "1800"
+          const h = rawTime.substring(0, 2);
+          const m = rawTime.substring(2, 4);
+          horarioFechamento = `${h}:${m}`;
+        } else if (place.opening_hours.open_now && !period) {
+          // Se está aberto mas não tem periodo de fechamento hoje (ex: 24h)
+          horarioFechamento = "24h";
+        }
+      }
+    } catch (e) {
+      horarioFechamento = "Consulte";
+    }
+    // ------------------------------------------------
 
     let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
 
@@ -182,7 +215,6 @@ export default async function handler(req, res) {
             ]
           })
         });
-
         const aiData = await aiResp.json();
         motivo = aiData.choices?.[0]?.message?.content || motivo;
       } catch (_) { }
@@ -193,6 +225,7 @@ export default async function handler(req, res) {
         nome: place.name || "Não informado",
         endereco: place.formatted_address || "Não informado",
         status: "Aberto agora",
+        horario: horarioFechamento, // Novo campo enviado ao front
         distancia: distKm ? `${distKm} km` : "Não informado",
         telefone: place.formatted_phone_number || "Não informado",
         motivo,
