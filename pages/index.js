@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as gtag from '../lib/gtag';
+import { track } from '@vercel/analytics/react';
+// Import para eventos customizados no Vercel
 
 // --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content, onRedo }) {
@@ -7,7 +9,7 @@ function ResultCard({ content, onRedo }) {
   try {
     local = typeof content === 'string' ? JSON.parse(content) : content;
   } catch (e) {
-    local = { nome: "Erro", endereco: "Tente novamente", status: "Erro", motivo: "Erro na leitura", telefone: "", distancia: "" };
+    local = { nome: "Erro", endereco: "Tente novamente", status: "Erro", horario: "", motivo: "Erro na leitura", telefone: "", distancia: "" };
   }
 
   const copyToClipboard = () => {
@@ -20,7 +22,7 @@ function ResultCard({ content, onRedo }) {
 
   const shareWA = () => {
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📞 ${local.telefone}\n\nEncontrado via achou.net.br`);
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nEncontrado via achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
@@ -41,6 +43,18 @@ function ResultCard({ content, onRedo }) {
       </div>
 
       <div className="details-box">
+        {/* Nova linha mostrando o horário de fechamento */}
+        {local.horario && local.horario !== "Consulte" && local.horario !== "24h" && (
+          <div className="detail-row" style={{ color: '#E53E3E', fontWeight: 'bold' }}>
+            <span>🕒</span> Fecha às {local.horario}
+          </div>
+        )}
+        {local.horario === "24h" && (
+           <div className="detail-row" style={{ color: '#28D07E', fontWeight: 'bold' }}>
+           <span>🕒</span> Aberto 24 horas
+         </div>
+        )}
+        
         <div className="detail-row"><span>📍</span> {local.endereco}</div>
         <div className="detail-row"><span>📏</span> {local.distancia}</div>
         <div className="detail-row"><span>📞</span> {local.telefone}</div>
@@ -76,6 +90,27 @@ const CATEGORIAS = [
   { id: 'Posto de gasolina', icon: '⛽' },
   { id: 'Borracharia', icon: '🛞' }
 ];
+
+// Função auxiliar para classificar a busca no Top 15
+const detectarCategoria = (termo) => {
+  const t = termo.toLowerCase();
+  if (t.includes('farmácia') || t.includes('drogaria') || t.includes('remedio') || t.includes('medicamento')) return '1) Farmácia / drogaria';
+  if (t.includes('restaurante') || t.includes('comida') || t.includes('almoço') || t.includes('jantar')) return '2) Restaurante';
+  if (t.includes('supermercado') || t.includes('mercado') || t.includes('mercadinho')) return '3) Supermercado';
+  if (t.includes('padaria') || t.includes('pão')) return '4) Padaria';
+  if (t.includes('posto') || t.includes('combustivel') || t.includes('gasolina')) return '5) Posto de gasolina';
+  if (t.includes('borracharia') || t.includes('pneu')) return '6) Borracharia';
+  if (t.includes('pet') || t.includes('veterin') || t.includes('animal') || t.includes('racao')) return '7) Pet shop / Veterinária';
+  if (t.includes('cafe') || t.includes('cafeteria')) return '8) Cafés';
+  if (t.includes('academia') || t.includes('fitness') || t.includes('crossfit') || t.includes('treino')) return '9) Academia / Fitness';
+  if (t.includes('barbearia') || t.includes('salao') || t.includes('beleza') || t.includes('cabelo') || t.includes('manicure')) return '10) Barbearia / Salões de beleza';
+  if (t.includes('vacina') || t.includes('saude') || t.includes('posto de saude')) return '11) Vacinação / Unidades de saúde';
+  if (t.includes('oficina') || t.includes('mecanic') || t.includes('automoti') || t.includes('carro')) return '12) Serviços automotivos / Oficina';
+  if (t.includes('hotel') || t.includes('pousada') || t.includes('hospedagem') || t.includes('motel')) return '13) Hotéis / Hospedagens';
+  if (t.includes('flor') || t.includes('planta') || t.includes('jardim')) return '14) Floriculturas';
+  
+  return '15) Outros'; // Cauda longa
+};
 
 export default function Home() {
   const [buscaLivre, setBuscaLivre] = useState('');
@@ -130,8 +165,34 @@ export default function Home() {
         })
       });
       const json = await resp.json();
+
       if (json.resultado) {
         setResultado(json.resultado);
+        // --- INTEGRAÇÃO DE MÉTRICAS (DEMANDA) ---
+        // Extrai o objeto para ler o bairro
+        let dadosLocais = {};
+        try {
+          dadosLocais = JSON.parse(json.resultado);
+        } catch(e) { dadosLocais = {} }
+
+        const categoriaMapeada = detectingCategoria(query);
+        const bairroDetectado = dadosLocais.bairro_usuario || 'Não identificado';
+
+        // 1. Envia para o Google Analytics
+        gtag.event({ 
+          action: 'search_demand', 
+          category: categoriaMapeada, 
+          label: bairroDetectado 
+        });
+
+        // 2. Envia para o Vercel Analytics (Custom Events)
+        track('Search Demand', {
+          category: categoriaMapeada,
+          neighborhood: bairroDetectado,
+          term: query
+        });
+        // ----------------------------------------
+
       } else {
         alert('Nenhum outro resultado próximo encontrado.');
       }
@@ -140,6 +201,12 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Wrapper para usar a função detectarCategoria dentro do componente se necessário, 
+  // mas aqui chamei a externa para manter limpo.
+  function detectingCategoria(termo) {
+      return detectarCategoria(termo);
   }
 
   return (
