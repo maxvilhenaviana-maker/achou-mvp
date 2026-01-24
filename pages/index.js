@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import * as gtag from '../lib/gtag';
 import { track } from '@vercel/analytics/react';
-// Import para eventos customizados no Vercel
 
 // --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content, onRedo }) {
@@ -22,7 +21,8 @@ function ResultCard({ content, onRedo }) {
 
   const shareWA = () => {
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nEncontrado via achou.net.br`);
+    // ALTERAÇÃO AQUI: Texto do WhatsApp atualizado
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
@@ -43,7 +43,7 @@ function ResultCard({ content, onRedo }) {
       </div>
 
       <div className="details-box">
-        {/* Nova linha mostrando o horário de fechamento */}
+        {/* Mostra o horário de fechamento se disponível */}
         {local.horario && local.horario !== "Consulte" && local.horario !== "24h" && (
           <div className="detail-row" style={{ color: '#E53E3E', fontWeight: 'bold' }}>
             <span>🕒</span> Fecha às {local.horario}
@@ -91,7 +91,6 @@ const CATEGORIAS = [
   { id: 'Borracharia', icon: '🛞' }
 ];
 
-// Função auxiliar para classificar a busca no Top 15
 const detectarCategoria = (termo) => {
   const t = termo.toLowerCase();
   if (t.includes('farmácia') || t.includes('drogaria') || t.includes('remedio') || t.includes('medicamento')) return '1) Farmácia / drogaria';
@@ -108,8 +107,7 @@ const detectarCategoria = (termo) => {
   if (t.includes('oficina') || t.includes('mecanic') || t.includes('automoti') || t.includes('carro')) return '12) Serviços automotivos / Oficina';
   if (t.includes('hotel') || t.includes('pousada') || t.includes('hospedagem') || t.includes('motel')) return '13) Hotéis / Hospedagens';
   if (t.includes('flor') || t.includes('planta') || t.includes('jardim')) return '14) Floriculturas';
-  
-  return '15) Outros'; // Cauda longa
+  return '15) Outros';
 };
 
 export default function Home() {
@@ -165,11 +163,9 @@ export default function Home() {
         })
       });
       const json = await resp.json();
-
       if (json.resultado) {
         setResultado(json.resultado);
-        // --- INTEGRAÇÃO DE MÉTRICAS (DEMANDA) ---
-        // Extrai o objeto para ler o bairro
+        
         let dadosLocais = {};
         try {
           dadosLocais = JSON.parse(json.resultado);
@@ -178,20 +174,17 @@ export default function Home() {
         const categoriaMapeada = detectingCategoria(query);
         const bairroDetectado = dadosLocais.bairro_usuario || 'Não identificado';
 
-        // 1. Envia para o Google Analytics
         gtag.event({ 
           action: 'search_demand', 
           category: categoriaMapeada, 
           label: bairroDetectado 
         });
 
-        // 2. Envia para o Vercel Analytics (Custom Events)
         track('Search Demand', {
           category: categoriaMapeada,
           neighborhood: bairroDetectado,
           term: query
         });
-        // ----------------------------------------
 
       } else {
         alert('Nenhum outro resultado próximo encontrado.');
@@ -203,8 +196,6 @@ export default function Home() {
     }
   }
 
-  // Wrapper para usar a função detectarCategoria dentro do componente se necessário, 
-  // mas aqui chamei a externa para manter limpo.
   function detectingCategoria(termo) {
       return detectarCategoria(termo);
   }
@@ -220,6 +211,9 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* ALTERAÇÃO AQUI: Nova frase inserida */}
+      <p className="slogan">Mais simples que o Google</p>
 
       <h2 className="section-title">Encontrar perto de mim:</h2>
       <div className="grid-menu">
@@ -276,11 +270,22 @@ export default function Home() {
       
       <style jsx>{`
         .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
-        .header { margin-bottom: 24px; }
+        .header { margin-bottom: 10px; } /* Margem reduzida para aproximar o slogan */
         .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
+        
+        /* ALTERAÇÃO AQUI: Estilo do slogan */
+        .slogan { 
+          text-align: center; 
+          color: #28D07E; 
+          font-weight: 600; 
+          margin-bottom: 25px; 
+          font-size: 0.95rem;
+          margin-top: 0;
+        }
+
         .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
