@@ -21,7 +21,7 @@ function ResultCard({ content, onRedo }) {
 
   const shareWA = () => {
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
-    // ALTERAÇÃO AQUI: Texto do WhatsApp atualizado
+    // Texto do WhatsApp mantido conforme solicitação anterior
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
@@ -212,10 +212,12 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ALTERAÇÃO AQUI: Nova frase inserida */}
+      {/* Frase ajustada para alinhamento à esquerda */}
       <p className="slogan">Mais simples que o Google</p>
 
-      <h2 className="section-title">Encontrar perto de mim:</h2>
+      {/* Título da seção alterado */}
+      <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
+      
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
           <button key={cat.id} className="btn-icon" onClick={() => handleSearch(cat.id)} disabled={loading}>
@@ -270,15 +272,15 @@ export default function Home() {
       
       <style jsx>{`
         .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
-        .header { margin-bottom: 10px; } /* Margem reduzida para aproximar o slogan */
+        .header { margin-bottom: 10px; }
         .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
         
-        /* ALTERAÇÃO AQUI: Estilo do slogan */
+        /* ALTERAÇÃO AQUI: Alinhamento alterado para esquerda */
         .slogan { 
-          text-align: center; 
+          text-align: left; 
           color: #28D07E; 
           font-weight: 600; 
           margin-bottom: 25px; 
