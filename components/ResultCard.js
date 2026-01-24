@@ -2,7 +2,6 @@ import React from 'react';
 
 export default function ResultCard({ content }) {
   let local = {};
-  
   // Tenta converter o texto da IA em Objeto JSON real
   try {
     local = JSON.parse(content);
@@ -14,7 +13,8 @@ export default function ResultCard({ content }) {
       status: "Erro",
       motivo: "Não foi possível estruturar os dados.",
       telefone: "",
-      distancia: ""
+      distancia: "",
+      horario: ""
     };
   }
 
@@ -28,7 +28,8 @@ export default function ResultCard({ content }) {
   };
 
   const shareWA = () => {
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status}\n📞 ${local.telefone}\n\nVia achou.net.br`);
+    // ALTERAÇÃO AQUI: Texto do WhatsApp atualizado
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
@@ -44,7 +45,7 @@ export default function ResultCard({ content }) {
 
       <p className="card-reason">{local.motivo}</p>
 
-      {/* ÁREA DOS BOTÕES (Corrigida para ficar dentro do card) */}
+      {/* ÁREA DOS BOTÕES */}
       <div className="buttons-row">
         <button onClick={copyToClipboard} className="btn btn-dark">
           📋 Copiar Endereço
@@ -56,6 +57,20 @@ export default function ResultCard({ content }) {
 
       {/* Detalhes Técnicos */}
       <div className="details-box">
+        {/* ALTERAÇÃO AQUI: Adicionado campo de Horário para consistência */}
+        {local.horario && local.horario !== "Consulte" && local.horario !== "24h" && (
+          <div className="detail-row" style={{ color: '#E53E3E', fontWeight: 'bold' }}>
+            <span className="icon">🕒</span>
+            <span>Fecha às {local.horario}</span>
+          </div>
+        )}
+        {local.horario === "24h" && (
+           <div className="detail-row" style={{ color: '#28D07E', fontWeight: 'bold' }}>
+           <span className="icon">🕒</span>
+           <span>Aberto 24 horas</span>
+         </div>
+        )}
+
         <div className="detail-row">
           <span className="icon">📍</span>
           <span>{local.endereco}</span>
@@ -80,9 +95,9 @@ export default function ResultCard({ content }) {
           box-shadow: 0 4px 20px rgba(0,0,0,0.08);
           border: 1px solid #f0f0f0;
           display: flex;
-          flex-direction: column; /* Força layout vertical */
+          flex-direction: column;
           width: 100%;
-          box-sizing: border-box; /* Impede padding de estourar largura */
+          box-sizing: border-box;
           animation: slideUp 0.5s ease;
         }
 
@@ -129,7 +144,7 @@ export default function ResultCard({ content }) {
         }
 
         .btn {
-          flex: 1; /* Crescem igualmente */
+          flex: 1;
           padding: 12px;
           border: none;
           border-radius: 8px;
