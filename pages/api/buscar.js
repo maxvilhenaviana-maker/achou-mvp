@@ -25,7 +25,6 @@ const CLIENTES_ACHOU = [
 export default async function handler(req, res) {
   // --- BLOQUEIO GEOGRÁFICO ---
   const country = req.headers['x-vercel-ip-country'] || 'BR';
-  
   if (process.env.NODE_ENV !== 'development' && country !== 'BR') {
     return res.status(403).json({ 
       error: "Acesso restrito ao território brasileiro.",
@@ -40,6 +39,9 @@ export default async function handler(req, res) {
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
+  // Variável de bairro iniciada fora do try para garantir escopo
+  let bairroUsuario = "Desconhecido";
+
   if (!GOOGLE_KEY) return res.status(500).json({ error: "GOOGLEMAPS_KEY não configurada" });
 
   try {
@@ -48,17 +50,21 @@ export default async function handler(req, res) {
     const termoBusca = busca.toLowerCase();
 
     // 2️⃣ IDENTIFICAR O BAIRRO DO USUÁRIO
-    const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
-    const geoResp = await fetch(geoUrl);
-    const geoData = await geoResp.json();
-    
-    let bairroUsuario = "Desconhecido";
-    if (geoData.results && geoData.results.length > 0) {
-      const addressComponents = geoData.results[0].address_components;
-      const neighborhood = addressComponents.find(c => 
-        c.types.includes("sublocality") || c.types.includes("neighborhood")
-      );
-      if (neighborhood) bairroUsuario = neighborhood.long_name;
+    try {
+      const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
+      const geoResp = await fetch(geoUrl);
+      const geoData = await geoResp.json();
+      
+      if (geoData.results && geoData.results.length > 0) {
+        const addressComponents = geoData.results[0].address_components;
+        const neighborhood = addressComponents.find(c => 
+          c.types.includes("sublocality") || c.types.includes("neighborhood")
+        );
+        if (neighborhood) bairroUsuario = neighborhood.long_name;
+      }
+    } catch (errGeo) {
+      console.error("Erro ao identificar bairro:", errGeo);
+      // Mantém 'Desconhecido' se falhar
     }
 
     // 3️⃣ LÓGICA DE PRIORIZAÇÃO (CHECK CLIENTE)
@@ -175,7 +181,7 @@ export default async function handler(req, res) {
     let horarioFechamento = "Consulte";
     try {
       if (place.opening_hours && place.opening_hours.periods) {
-        // Ajuste manual de fuso horário para o Brasil (UTC-3) aproximado para pegar o dia da semana correto
+        // Ajuste manual de fuso horário para o Brasil (UTC-3) aproximado
         const now = new Date();
         now.setHours(now.getHours() - 3); 
         const todayDay = now.getDay(); // 0 = Domingo, 1 = Segunda...
@@ -199,7 +205,7 @@ export default async function handler(req, res) {
     // ------------------------------------------------
 
     let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
-
+    
     // 5️⃣ CONSULTA AO CÉREBRO (AI) PARA O MOTIVO
     if (OPENAI_KEY) {
       try {
