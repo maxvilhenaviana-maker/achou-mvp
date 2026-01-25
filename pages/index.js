@@ -13,6 +13,7 @@ function ResultCard({ content, onRedo }) {
 
   const copyToClipboard = () => {
     if (local.endereco) {
+      // Evento de Conversão: Cópia para GPS
       gtag.event({ action: 'conversion_gps', category: 'Engagement', label: local.nome });
       navigator.clipboard.writeText(local.endereco);
       alert("📋 Endereço copiado para o GPS!");
@@ -20,8 +21,9 @@ function ResultCard({ content, onRedo }) {
   };
 
   const shareWA = () => {
+    // Evento de Conversão: Share WhatsApp
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
-    // Texto do WhatsApp mantido conforme solicitação anterior
+    // Texto do WhatsApp mantido conforme solicitação
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
@@ -93,21 +95,21 @@ const CATEGORIAS = [
 
 const detectarCategoria = (termo) => {
   const t = termo.toLowerCase();
-  if (t.includes('farmácia') || t.includes('drogaria') || t.includes('remedio') || t.includes('medicamento')) return '1) Farmácia / drogaria';
-  if (t.includes('restaurante') || t.includes('comida') || t.includes('almoço') || t.includes('jantar')) return '2) Restaurante';
-  if (t.includes('supermercado') || t.includes('mercado') || t.includes('mercadinho')) return '3) Supermercado';
-  if (t.includes('padaria') || t.includes('pão')) return '4) Padaria';
-  if (t.includes('posto') || t.includes('combustivel') || t.includes('gasolina')) return '5) Posto de gasolina';
-  if (t.includes('borracharia') || t.includes('pneu')) return '6) Borracharia';
-  if (t.includes('pet') || t.includes('veterin') || t.includes('animal') || t.includes('racao')) return '7) Pet shop / Veterinária';
-  if (t.includes('cafe') || t.includes('cafeteria')) return '8) Cafés';
-  if (t.includes('academia') || t.includes('fitness') || t.includes('crossfit') || t.includes('treino')) return '9) Academia / Fitness';
-  if (t.includes('barbearia') || t.includes('salao') || t.includes('beleza') || t.includes('cabelo') || t.includes('manicure')) return '10) Barbearia / Salões de beleza';
-  if (t.includes('vacina') || t.includes('saude') || t.includes('posto de saude')) return '11) Vacinação / Unidades de saúde';
-  if (t.includes('oficina') || t.includes('mecanic') || t.includes('automoti') || t.includes('carro')) return '12) Serviços automotivos / Oficina';
-  if (t.includes('hotel') || t.includes('pousada') || t.includes('hospedagem') || t.includes('motel')) return '13) Hotéis / Hospedagens';
-  if (t.includes('flor') || t.includes('planta') || t.includes('jardim')) return '14) Floriculturas';
-  return '15) Outros';
+  if (t.includes('farmácia') || t.includes('drogaria') || t.includes('remedio') || t.includes('medicamento')) return 'Farmácia';
+  if (t.includes('restaurante') || t.includes('comida') || t.includes('almoço') || t.includes('jantar')) return 'Restaurante';
+  if (t.includes('supermercado') || t.includes('mercado') || t.includes('mercadinho')) return 'Supermercado';
+  if (t.includes('padaria') || t.includes('pão')) return 'Padaria';
+  if (t.includes('posto') || t.includes('combustivel') || t.includes('gasolina')) return 'Posto';
+  if (t.includes('borracharia') || t.includes('pneu')) return 'Borracharia';
+  if (t.includes('pet') || t.includes('veterin') || t.includes('animal') || t.includes('racao')) return 'Pet Shop';
+  if (t.includes('cafe') || t.includes('cafeteria')) return 'Café';
+  if (t.includes('academia') || t.includes('fitness') || t.includes('crossfit') || t.includes('treino')) return 'Academia';
+  if (t.includes('barbearia') || t.includes('salao') || t.includes('beleza') || t.includes('cabelo') || t.includes('manicure')) return 'Beleza';
+  if (t.includes('vacina') || t.includes('saude') || t.includes('posto de saude')) return 'Saúde';
+  if (t.includes('oficina') || t.includes('mecanic') || t.includes('automoti') || t.includes('carro')) return 'Oficina';
+  if (t.includes('hotel') || t.includes('pousada') || t.includes('hospedagem') || t.includes('motel')) return 'Hospedagem';
+  if (t.includes('flor') || t.includes('planta') || t.includes('jardim')) return 'Floricultura';
+  return 'Outros';
 };
 
 export default function Home() {
@@ -163,6 +165,7 @@ export default function Home() {
         })
       });
       const json = await resp.json();
+      
       if (json.resultado) {
         setResultado(json.resultado);
         
@@ -172,12 +175,35 @@ export default function Home() {
         } catch(e) { dadosLocais = {} }
 
         const categoriaMapeada = detectingCategoria(query);
+        // Garante um valor padrão caso o backend não retorne
         const bairroDetectado = dadosLocais.bairro_usuario || 'Não identificado';
 
+        // --- ESTRATÉGIA DE MÉTRICAS SOLICITADA --- //
+        
+        // 1. Evento de E-commerce Simulado: "View Item"
+        // Isso preenche a aba "Itens comprados" ou "Itens vistos" no GA4.
+        gtag.event({
+          action: 'view_item',
+          currency: "BRL",
+          value: 0,
+          items: [
+            {
+              item_id: dadosLocais.nome ? dadosLocais.nome.replace(/\s+/g, '_').toLowerCase() : "id_generico",
+              item_name: dadosLocais.nome || query,   // Nome do item (Estabelecimento)
+              item_category: categoriaMapeada,        // Categoria (Ex: Farmácia)
+              item_variant: bairroDetectado,          // Variante (Ex: Buritis)
+              item_list_name: "Busca Local"
+            }
+          ]
+        });
+
+        // 2. Evento Padrão de Busca com Rótulo Rico
+        // Isso preenche a aba "Eventos principais" e permite leitura fácil
         gtag.event({ 
-          action: 'search_demand', 
+          action: 'search_result', 
           category: categoriaMapeada, 
-          label: bairroDetectado 
+          label: `${categoriaMapeada} | ${bairroDetectado}`, // Formato: "Farmácia | Buritis"
+          value: 1
         });
 
         track('Search Demand', {
@@ -191,6 +217,7 @@ export default function Home() {
       }
     } catch (err) {
       alert('Erro de conexão.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -212,10 +239,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Frase ajustada para alinhamento à esquerda */}
       <p className="slogan">Mais simples que o Google</p>
 
-      {/* Título da seção alterado */}
       <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
       
       <div className="grid-menu">
@@ -277,17 +302,7 @@ export default function Home() {
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
-        
-        /* ALTERAÇÃO AQUI: Alinhamento alterado para esquerda */
-        .slogan { 
-          text-align: left; 
-          color: #28D07E; 
-          font-weight: 600; 
-          margin-bottom: 25px; 
-          font-size: 0.95rem;
-          margin-top: 0;
-        }
-
+        .slogan { text-align: left; color: #28D07E; font-weight: 600; margin-bottom: 25px; font-size: 0.95rem; margin-top: 0; }
         .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
