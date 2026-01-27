@@ -34,13 +34,49 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).end();
 
-  // Recebe 'excluir' do front-end e o novo campo 'endereco' (opcional)
-  const { busca, localizacao, excluir = [], endereco } = req.body;
+  const { busca, localizacao, excluir = [], endereco, modo } = req.body;
   
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
   if (!GOOGLE_KEY) return res.status(500).json({ error: "GOOGLEMAPS_KEY não configurada" });
+
+  // --- MODO: REVERSE GEOCODING (Para preencher inputs do front) ---
+  if (modo === 'geo_reverse') {
+    try {
+      const coords = localizacao.replace(/\s/g, '');
+      const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords}&key=${GOOGLE_KEY}`;
+      const geoResp = await fetch(geoUrl);
+      const geoData = await geoResp.json();
+
+      let cidade = "";
+      let estado = "";
+      let pais = "Brasil";
+
+      if (geoData.results && geoData.results.length > 0) {
+        const components = geoData.results[0].address_components;
+        
+        // Extrai Cidade (Administrative Area 2 ou Locality)
+        const cityComp = components.find(c => c.types.includes("administrative_area_level_2")) || 
+                         components.find(c => c.types.includes("locality"));
+        if (cityComp) cidade = cityComp.long_name;
+
+        // Extrai Estado (Administrative Area 1)
+        const stateComp = components.find(c => c.types.includes("administrative_area_level_1"));
+        if (stateComp) estado = stateComp.short_name; // Ex: MG
+
+        // Extrai País
+        const countryComp = components.find(c => c.types.includes("country"));
+        if (countryComp) pais = countryComp.long_name;
+      }
+
+      return res.status(200).json({ cidade, estado, pais });
+
+    } catch (e) {
+      return res.status(500).json({ error: "Erro ao reverter geolocalização" });
+    }
+  }
+  // -------------------------------------------------------------
 
   // Variáveis principais de coordenadas
   let lat = null;
@@ -62,10 +98,10 @@ export default async function handler(req, res) {
         } else {
           return res.status(200).json({
              resultado: JSON.stringify({
-               nome: "Endereço não encontrado",
-               endereco: "Verifique os dados digitados",
+               nome: "Localização não encontrada",
+               endereco: "Verifique os dados (Bairro, Cidade, Estado)",
                status: "Erro",
-               motivo: "Não conseguimos localizar o endereço, número ou bairro informado. Tente simplificar a busca.",
+               motivo: "Não conseguimos localizar o endereço exato. Verifique se a Cidade e o Estado estão corretos.",
                horario: "",
                distancia: "",
                telefone: ""
