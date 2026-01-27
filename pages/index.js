@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+[cite_start][cite: 129] import { useState, useEffect } from 'react';
 import * as gtag from '../lib/gtag';
 import { track } from '@vercel/analytics/react';
 
@@ -12,11 +12,13 @@ function ResultCard({ content, onRedo }) {
   }
 
   const copyToClipboard = () => {
-    if (local.endereco) {
+    if (local.endereco && local.endereco !== "Verifique os dados digitados") {
       // Evento de Conversão: Cópia para GPS
       gtag.event({ action: 'conversion_gps', category: 'Engagement', label: local.nome });
       navigator.clipboard.writeText(local.endereco);
       alert("📋 Endereço copiado para o GPS!");
+    } else {
+      alert("Nada para copiar.");
     }
   };
 
@@ -32,7 +34,7 @@ function ResultCard({ content, onRedo }) {
     <div className="card-container">
       <div className="card-header">
         <h2 className="card-title">{local.nome}</h2>
-        <span className={`status-badge ${local.status?.toLowerCase().includes('fechado') ? 'fechado' : 'aberto'}`}>
+        <span className={`status-badge ${local.status?.toLowerCase().includes('fechado') || local.status === 'Erro' ? 'fechado' : 'aberto'}`}>
           {local.status}
         </span>
       </div>
@@ -63,21 +65,37 @@ function ResultCard({ content, onRedo }) {
       </div>
 
       <style jsx>{`
-        .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease; }
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px; }
-        .card-title { margin: 0; font-size: 1.2rem; color: #0F2133; font-weight: 800; }
-        .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-transform: uppercase; }
-        .aberto { background: #E6FFFA; color: #28D07E; }
-        .fechado { background: #FFF5F5; color: #F56565; }
-        .card-reason { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.4; }
-        .buttons-row { display: flex; gap: 8px; margin-bottom: 20px; }
-        .btn-card { flex: 1; padding: 12px 5px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
-        .btn-dark { background: #0F2133; color: white; }
-        .btn-green { background: #25D366; color: white; }
-        .btn-blue { background: #3182ce; color: white; }
-        .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
-        .detail-row { display: flex; gap: 10px; color: #333; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card-container { background: white;
+          border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px;
+        }
+        .card-title { margin: 0; font-size: 1.2rem; color: #0F2133; font-weight: 800;
+        }
+        .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; font-weight: bold;
+          text-transform: uppercase; }
+        .aberto { background: #E6FFFA; color: #28D07E;
+        }
+        .fechado { background: #FFF5F5; color: #F56565;
+        }
+        .card-reason { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.4;
+        }
+        .buttons-row { display: flex; gap: 8px; margin-bottom: 20px;
+        }
+        .btn-card { flex: 1; padding: 12px 5px; border: none; border-radius: 8px;
+          font-weight: bold; cursor: pointer; font-size: 0.8rem; }
+        .btn-dark { background: #0F2133; color: white;
+        }
+        .btn-green { background: #25D366; color: white;
+        }
+        .btn-blue { background: #3182ce; color: white;
+        }
+        .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex;
+          flex-direction: column; gap: 10px; }
+        .detail-row { display: flex; gap: 10px; color: #333;
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px);
+        } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
@@ -121,6 +139,12 @@ export default function Home() {
   const [ultimaBusca, setUltimaBusca] = useState('');
   const [excluirNomes, setExcluirNomes] = useState([]);
 
+  // Estados para busca manual
+  const [usarOutroLocal, setUsarOutroLocal] = useState(false);
+  const [ruaManual, setRuaManual] = useState('');
+  const [numManual, setNumManual] = useState('');
+  const [bairroManual, setBairroManual] = useState('');
+
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
@@ -146,6 +170,32 @@ export default function Home() {
     const query = termo || buscaLivre;
     if (!query) return alert('O que você precisa agora?');
 
+    // Lógica para endereço manual
+    let enderecoFormatado = "";
+    if (usarOutroLocal) {
+      if (!bairroManual && !ruaManual) {
+        return alert("Para buscar em outro local, digite pelo menos o Bairro ou a Rua.");
+      }
+      
+      // Constrói a string de busca conforme as regras pedidas
+      if (ruaManual && numManual && bairroManual) {
+        // Completo
+        enderecoFormatado = `${ruaManual}, ${numManual} - ${bairroManual}`;
+      } else if (ruaManual && !numManual && bairroManual) {
+        // Rua sem número (Centro da rua)
+        enderecoFormatado = `${ruaManual} - ${bairroManual}`;
+      } else if (!ruaManual && bairroManual) {
+        // Só bairro (Centro do bairro)
+        enderecoFormatado = `${bairroManual}`;
+      } else {
+        // Fallback genérico para o que foi digitado
+        enderecoFormatado = `${ruaManual} ${bairroManual}`;
+      }
+      
+      // Adiciona contexto de cidade (opcional, mas ajuda a evitar ambiguidades)
+      // O backend também tem lógica, mas enviar formatado ajuda
+    }
+
     if (listaExclusaoManual.length === 0) {
       setExcluirNomes([]);
     }
@@ -161,11 +211,11 @@ export default function Home() {
         body: JSON.stringify({ 
           busca: query, 
           localizacao: localizacao || '0,0',
+          endereco: usarOutroLocal ? enderecoFormatado : null, // Envia endereço se ativo
           excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes 
         })
       });
       const json = await resp.json();
-      
       if (json.resultado) {
         setResultado(json.resultado);
         
@@ -178,10 +228,8 @@ export default function Home() {
         // Garante um valor padrão caso o backend não retorne
         const bairroDetectado = dadosLocais.bairro_usuario || 'Não identificado';
 
-        // --- ESTRATÉGIA DE MÉTRICAS SOLICITADA --- //
+        // --- ESTRATÉGIA DE MÉTRICAS --- //
         
-        // 1. Evento de E-commerce Simulado: "View Item"
-        // Isso preenche a aba "Itens comprados" ou "Itens vistos" no GA4.
         gtag.event({
           action: 'view_item',
           currency: "BRL",
@@ -189,31 +237,29 @@ export default function Home() {
           items: [
             {
               item_id: dadosLocais.nome ? dadosLocais.nome.replace(/\s+/g, '_').toLowerCase() : "id_generico",
-              item_name: dadosLocais.nome || query,   // Nome do item (Estabelecimento)
-              item_category: categoriaMapeada,        // Categoria (Ex: Farmácia)
-              item_variant: bairroDetectado,          // Variante (Ex: Buritis)
+              item_name: dadosLocais.nome || query,
+              item_category: categoriaMapeada,
+              item_variant: bairroDetectado,
               item_list_name: "Busca Local"
             }
           ]
         });
 
-        // 2. Evento Padrão de Busca com Rótulo Rico
-        // Isso preenche a aba "Eventos principais" e permite leitura fácil
         gtag.event({ 
           action: 'search_result', 
           category: categoriaMapeada, 
-          label: `${categoriaMapeada} | ${bairroDetectado}`, // Formato: "Farmácia | Buritis"
+          label: `${categoriaMapeada} | ${bairroDetectado}`, 
           value: 1
         });
 
         track('Search Demand', {
           category: categoriaMapeada,
           neighborhood: bairroDetectado,
-          term: query
+          term: query,
+          mode: usarOutroLocal ? 'Manual' : 'GPS'
         });
-
       } else {
-        alert('Nenhum outro resultado próximo encontrado.');
+        alert('Nenhum resultado encontrado.');
       }
     } catch (err) {
       alert('Erro de conexão.');
@@ -236,6 +282,48 @@ export default function Home() {
             <h1 className="app-name">achou.net.br</h1>
             <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
           </div>
+        </div>
+        
+        {/* BOTÃO E ÁREA PARA BUSCA EM OUTRO LOCAL */}
+        <div className="location-toggle-area">
+          <button 
+            className="btn-link"
+            onClick={() => setUsarOutroLocal(!usarOutroLocal)}
+          >
+            {usarOutroLocal ? '📍 Usar meu GPS atual' : '🗺️ Buscar em outro local'}
+          </button>
+
+          {usarOutroLocal && (
+            <div className="manual-address-form">
+              <input 
+                placeholder="Rua (Opcional)" 
+                className="input-manual"
+                value={ruaManual}
+                onChange={e => setRuaManual(e.target.value)}
+              />
+              <div className="row-inputs">
+                <input 
+                  placeholder="Nº" 
+                  className="input-manual small"
+                  value={numManual}
+                  onChange={e => setNumManual(e.target.value)}
+                />
+                <input 
+                  placeholder="Bairro (Obrigatório)" 
+                  className="input-manual"
+                  value={bairroManual}
+                  onChange={e => setBairroManual(e.target.value)}
+                />
+              </div>
+              <p className="manual-help">
+                Pesquisando próximo a: <strong>
+                  {ruaManual || numManual || bairroManual 
+                    ? `${ruaManual} ${numManual ? ', ' + numManual : ''} - ${bairroManual}` 
+                    : 'Digite o endereço acima'}
+                </strong>
+              </p>
+            </div>
+          )}
         </div>
       </header>
 
@@ -290,34 +378,83 @@ export default function Home() {
             e pode não estar atualizado. Então convém ligar antes para confirmar.
           </p>
           <p>
-            <strong>3)</strong> Verifique abaixo do título do aplicativo "achou.net.br" se a localização ou GPS estão ativados, antes de fazer a busca.
+            <strong>3)</strong> Verifique se a localização está correta ou use a função "Buscar em outro local" para pesquisar para terceiros.
           </p>
         </div>
       </footer>
       
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
-        .header { margin-bottom: 10px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
-        .logo-img { width: 48px; height: 48px; border-radius: 10px; }
-        .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
-        .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
-        .slogan { text-align: left; color: #28D07E; font-weight: 600; margin-bottom: 25px; font-size: 0.95rem; margin-top: 0; }
-        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
-        .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .emoji { font-size: 1.8rem; margin-bottom: 4px; }
-        .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
-        .search-bar { display: flex; gap: 8px; }
-        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; }
-        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; }
-        .loading-area { text-align: center; margin-top: 30px; color: #718096; }
-        .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
-        .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; }
-        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 12px; font-size: 0.85rem; }
-        .footer-content p { margin-bottom: 12px; line-height: 1.5; }
-        .footer-content p:last-child { margin-bottom: 0; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .main-wrapper { max-width: 480px;
+          margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif;
+        }
+        .header { margin-bottom: 10px;
+        }
+        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center;
+        }
+        .logo-img { width: 48px; height: 48px; border-radius: 10px;
+        }
+        .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133;
+        }
+        .gps-status { margin: 0; font-size: 0.75rem; color: #666;
+        }
+        
+        /* ESTILOS NOVOS PARA BUSCA MANUAL */
+        .location-toggle-area {
+          text-align: center;
+          margin-top: 10px;
+        }
+        .btn-link {
+          background: none; border: none; color: #3182ce; font-size: 0.85rem;
+          text-decoration: underline; cursor: pointer; padding: 5px;
+        }
+        .manual-address-form {
+          background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0;
+          margin-top: 10px; animation: fadeIn 0.3s;
+        }
+        .input-manual {
+          width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #CBD5E0;
+          border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;
+        }
+        .row-inputs { display: flex; gap: 8px; }
+        .small { width: 30%; }
+        .manual-help { font-size: 0.75rem; color: #666; margin: 0; text-align: left; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        /* FIM ESTILOS NOVOS */
+
+        .slogan { text-align: left; color: #28D07E; font-weight: 600; margin-bottom: 25px; font-size: 0.95rem;
+          margin-top: 15px; }
+        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600;
+        }
+        .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
+        }
+        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px;
+          padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer;
+        }
+        .emoji { font-size: 1.8rem; margin-bottom: 4px;
+        }
+        .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase;
+        }
+        .search-bar { display: flex; gap: 8px;
+        }
+        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px;
+          font-size: 1rem; }
+        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px;
+          width: 55px; cursor: pointer; }
+        .loading-area { text-align: center; margin-top: 30px; color: #718096;
+        }
+        .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E;
+          border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;
+        }
+        .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0;
+          color: #718096; font-size: 0.75rem; }
+        .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 12px;
+          font-size: 0.85rem; }
+        .footer-content p { margin-bottom: 12px; line-height: 1.5;
+        }
+        .footer-content p:last-child { margin-bottom: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg);
+        } }
       `}</style>
     </div>
   );
