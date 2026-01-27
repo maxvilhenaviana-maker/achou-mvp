@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as gtag from '../lib/gtag';
 import { track } from '@vercel/analytics/react';
 
@@ -144,18 +144,51 @@ export default function Home() {
   const [ruaManual, setRuaManual] = useState('');
   const [numManual, setNumManual] = useState('');
   const [bairroManual, setBairroManual] = useState('');
+  
+  // Novos estados para Cidade/Estado/Pais
+  const [cidadeManual, setCidadeManual] = useState('');
+  const [estadoManual, setEstadoManual] = useState('');
+  const [paisManual, setPaisManual] = useState('Brasil');
+
+  // Referência para focar no Bairro
+  const bairroRef = useRef(null);
 
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocalizacao(`${pos.coords.latitude},${pos.coords.longitude}`);
+        const coordString = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLocalizacao(coordString);
         setGpsAtivo(true);
+
+        // --- PREENCHIMENTO AUTOMÁTICO DE CIDADE/ESTADO VIA API ---
+        fetch('/api/buscar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            modo: 'geo_reverse',
+            localizacao: coordString
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.cidade) setCidadeManual(data.cidade);
+          if (data.estado) setEstadoManual(data.estado);
+          if (data.pais) setPaisManual(data.pais);
+        })
+        .catch(err => console.error("Erro ao obter endereço automático", err));
       },
       () => setGpsAtivo(false),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
+
+  // Foca no input de Bairro quando a busca manual é ativada
+  useEffect(() => {
+    if (usarOutroLocal && bairroRef.current) {
+      bairroRef.current.focus();
+    }
+  }, [usarOutroLocal]);
 
   const handleRedo = () => {
     if (!resultado) return;
@@ -173,27 +206,24 @@ export default function Home() {
     // Lógica para endereço manual
     let enderecoFormatado = "";
     if (usarOutroLocal) {
-      if (!bairroManual && !ruaManual) {
-        return alert("Para buscar em outro local, digite pelo menos o Bairro ou a Rua.");
+      if (!bairroManual || !cidadeManual || !estadoManual || !paisManual) {
+        return alert("Para buscar em outro local, preencha Bairro, Cidade, Estado e País.");
       }
       
-      // Constrói a string de busca conforme as regras pedidas
-      if (ruaManual && numManual && bairroManual) {
-        // Completo
-        enderecoFormatado = `${ruaManual}, ${numManual} - ${bairroManual}`;
-      } else if (ruaManual && !numManual && bairroManual) {
-        // Rua sem número (Centro da rua)
-        enderecoFormatado = `${ruaManual} - ${bairroManual}`;
-      } else if (!ruaManual && bairroManual) {
-        // Só bairro (Centro do bairro)
-        enderecoFormatado = `${bairroManual}`;
+      // Constrói a string de busca completa para evitar ambiguidade (Ex: Serra, ES vs Serra, BH)
+      let parteRua = "";
+      if (ruaManual) {
+        parteRua = ruaManual;
+        if (numManual) parteRua += `, ${numManual}`;
+      }
+      
+      // Formato: "Rua X, 123 - Bairro Y, Cidade - Estado, País"
+      // Se não tiver rua: "Bairro Y, Cidade - Estado, País"
+      if (parteRua) {
+        enderecoFormatado = `${parteRua} - ${bairroManual}, ${cidadeManual} - ${estadoManual}, ${paisManual}`;
       } else {
-        // Fallback genérico para o que foi digitado
-        enderecoFormatado = `${ruaManual} ${bairroManual}`;
+        enderecoFormatado = `${bairroManual}, ${cidadeManual} - ${estadoManual}, ${paisManual}`;
       }
-      
-      // Adiciona contexto de cidade (opcional, mas ajuda a evitar ambiguidades)
-      // O backend também tem lógica, mas enviar formatado ajuda
     }
 
     if (listaExclusaoManual.length === 0) {
@@ -211,7 +241,7 @@ export default function Home() {
         body: JSON.stringify({ 
           busca: query, 
           localizacao: localizacao || '0,0',
-          endereco: usarOutroLocal ? enderecoFormatado : null, // Envia endereço se ativo
+          endereco: usarOutroLocal ? enderecoFormatado : null, // Envia endereço formatado se ativo
           excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes 
         })
       });
@@ -309,17 +339,39 @@ export default function Home() {
                   onChange={e => setNumManual(e.target.value)}
                 />
                 <input 
+                  ref={bairroRef}
                   placeholder="Bairro (Obrigatório)" 
                   className="input-manual"
                   value={bairroManual}
                   onChange={e => setBairroManual(e.target.value)}
                 />
               </div>
+              <div className="row-inputs">
+                <input 
+                  placeholder="Cidade" 
+                  className="input-manual"
+                  value={cidadeManual}
+                  onChange={e => setCidadeManual(e.target.value)}
+                />
+                <input 
+                  placeholder="Estado" 
+                  className="input-manual small"
+                  value={estadoManual}
+                  onChange={e => setEstadoManual(e.target.value)}
+                />
+              </div>
+               <input 
+                  placeholder="País" 
+                  className="input-manual"
+                  value={paisManual}
+                  onChange={e => setPaisManual(e.target.value)}
+                />
+              
               <p className="manual-help">
                 Pesquisando próximo a: <strong>
-                  {ruaManual || numManual || bairroManual 
-                    ? `${ruaManual} ${numManual ? ', ' + numManual : ''} - ${bairroManual}` 
-                    : 'Digite o endereço acima'}
+                  {bairroManual 
+                    ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
+                    : 'Preencha o endereço'}
                 </strong>
               </p>
             </div>
