@@ -12,7 +12,7 @@ const CLIENTES_ACHOU = [
     termoMatch: 'farmácia', 
     nome: "Drogaria Teste de Indicação",
     endereco: "Rua Alessandra Salum Teste, 181",
-    bairro: "Burits", // Mantido "Burits" conforme solicitado (não alterar para Buritis)
+    bairro: "Burits", // Mantido "Burits" propositalmente
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     horario: "22:00", // Horário estático para o cliente teste
@@ -34,27 +34,66 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).end();
 
-  // Recebe 'excluir' do front-end (lista de nomes já mostrados)
-  const { busca, localizacao, excluir = [] } = req.body;
+  // Recebe 'excluir' do front-end e o novo campo 'endereco' (opcional)
+  const { busca, localizacao, excluir = [], endereco } = req.body;
+  
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
-  // Variável de bairro iniciada fora do try para garantir escopo
-  let bairroUsuario = "Desconhecido";
-
   if (!GOOGLE_KEY) return res.status(500).json({ error: "GOOGLEMAPS_KEY não configurada" });
 
-  try {
-    const coords = localizacao.replace(/\s/g, '');
-    const [lat, lng] = coords.split(",");
-    const termoBusca = busca.toLowerCase();
+  // Variáveis principais de coordenadas
+  let lat = null;
+  let lng = null;
 
-    // 2️⃣ IDENTIFICAR O BAIRRO DO USUÁRIO
+  try {
+    // --- LÓGICA DE DEFINIÇÃO DO PONTO DE BUSCA ---
+    
+    // CASO 1: BUSCA POR ENDEREÇO MANUAL (Prioridade se enviado)
+    if (endereco && endereco.trim().length > 0) {
+      try {
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}&key=${GOOGLE_KEY}`;
+        const geocodeResp = await fetch(geocodeUrl);
+        const geocodeData = await geocodeResp.json();
+
+        if (geocodeData.status === 'OK' && geocodeData.results.length > 0) {
+          lat = geocodeData.results[0].geometry.location.lat;
+          lng = geocodeData.results[0].geometry.location.lng;
+        } else {
+          return res.status(200).json({
+             resultado: JSON.stringify({
+               nome: "Endereço não encontrado",
+               endereco: "Verifique os dados digitados",
+               status: "Erro",
+               motivo: "Não conseguimos localizar o endereço, número ou bairro informado. Tente simplificar a busca.",
+               horario: "",
+               distancia: "",
+               telefone: ""
+             })
+          });
+        }
+      } catch (errGeoCode) {
+         console.error("Erro no geocoding manual:", errGeoCode);
+         return res.status(500).json({ error: "Erro ao processar endereço manual" });
+      }
+    } 
+    // CASO 2: BUSCA POR GPS (Padrão)
+    else {
+      const coords = localizacao.replace(/\s/g, '');
+      const splitCoords = coords.split(",");
+      lat = splitCoords[0];
+      lng = splitCoords[1];
+    }
+
+    const termoBusca = busca.toLowerCase();
+    let bairroUsuario = "Desconhecido";
+
+    // 2️⃣ IDENTIFICAR O BAIRRO DO PONTO DE BUSCA (Seja GPS ou Manual)
+    // Isso garante que a lógica Premium funcione também para o endereço manual
     try {
       const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
       const geoResp = await fetch(geoUrl);
       const geoData = await geoResp.json();
-      
       if (geoData.results && geoData.results.length > 0) {
         const addressComponents = geoData.results[0].address_components;
         const neighborhood = addressComponents.find(c => 
@@ -158,7 +197,7 @@ export default async function handler(req, res) {
           horario: "-",
           distancia: "—",
           telefone: "Não informado",
-          motivo: "Não encontramos estabelecimentos abertos correspondentes à categoria exata perto de você.",
+          motivo: "Não encontramos estabelecimentos abertos correspondentes à categoria exata perto deste local.",
           bairro_usuario: bairroUsuario
         })
       });
@@ -190,7 +229,8 @@ export default async function handler(req, res) {
         const period = place.opening_hours.periods.find(p => p.open && p.open.day === todayDay);
         
         if (period && period.close) {
-          const rawTime = period.close.time; // Ex: "1800"
+          const rawTime = period.close.time;
+          // Ex: "1800"
           const h = rawTime.substring(0, 2);
           const m = rawTime.substring(2, 4);
           horarioFechamento = `${h}:${m}`;
@@ -204,7 +244,7 @@ export default async function handler(req, res) {
     }
     // ------------------------------------------------
 
-    let motivo = "Este é o local aberto mais próximo identificado pelo GPS.";
+    let motivo = "Este é o local aberto mais próximo identificado.";
     
     // 5️⃣ CONSULTA AO CÉREBRO (AI) PARA O MOTIVO
     if (OPENAI_KEY) {
@@ -216,7 +256,7 @@ export default async function handler(req, res) {
             model: "gpt-4o-mini",
             temperature: 0.3,
             messages: [
-              { role: "system", content: "Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser o mais próximo." },
+              { role: "system", content: "Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser próximo." },
               { role: "user", content: `Local: ${place.name}, Distância: ${distKm}km. O usuário buscou por: ${busca}.` }
             ]
           })
