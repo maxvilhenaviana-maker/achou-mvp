@@ -144,7 +144,6 @@ export default function Home() {
   const [ruaManual, setRuaManual] = useState('');
   const [numManual, setNumManual] = useState('');
   const [bairroManual, setBairroManual] = useState('');
-  
   // Novos estados para Cidade/Estado/Pais
   const [cidadeManual, setCidadeManual] = useState('');
   const [estadoManual, setEstadoManual] = useState('');
@@ -218,7 +217,6 @@ export default function Home() {
       }
       
       // Formato: "Rua X, 123 - Bairro Y, Cidade - Estado, País"
-      // Se não tiver rua: "Bairro Y, Cidade - Estado, País"
       if (parteRua) {
         enderecoFormatado = `${parteRua} - ${bairroManual}, ${cidadeManual} - ${estadoManual}, ${paisManual}`;
       } else {
@@ -241,10 +239,11 @@ export default function Home() {
         body: JSON.stringify({ 
           busca: query, 
           localizacao: localizacao || '0,0',
-          endereco: usarOutroLocal ? enderecoFormatado : null, // Envia endereço formatado se ativo
+          endereco: usarOutroLocal ? enderecoFormatado : null, 
           excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes 
         })
       });
+
       const json = await resp.json();
       if (json.resultado) {
         setResultado(json.resultado);
@@ -255,11 +254,9 @@ export default function Home() {
         } catch(e) { dadosLocais = {} }
 
         const categoriaMapeada = detectingCategoria(query);
-        // Garante um valor padrão caso o backend não retorne
         const bairroDetectado = dadosLocais.bairro_usuario || 'Não identificado';
 
         // --- ESTRATÉGIA DE MÉTRICAS --- //
-        
         gtag.event({
           action: 'view_item',
           currency: "BRL",
@@ -288,6 +285,7 @@ export default function Home() {
           term: query,
           mode: usarOutroLocal ? 'Manual' : 'GPS'
         });
+
       } else {
         alert('Nenhum resultado encontrado.');
       }
@@ -313,75 +311,81 @@ export default function Home() {
             <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
           </div>
         </div>
-        
-        {/* BOTÃO E ÁREA PARA BUSCA EM OUTRO LOCAL */}
-        <div className="location-toggle-area">
-          <button 
-            className="btn-link"
-            onClick={() => setUsarOutroLocal(!usarOutroLocal)}
-          >
-            {usarOutroLocal ? '📍 Usar meu GPS atual' : '🗺️ Buscar em outro local'}
-          </button>
-
-          {usarOutroLocal && (
-            <div className="manual-address-form">
-              <input 
-                placeholder="Rua (Opcional)" 
-                className="input-manual"
-                value={ruaManual}
-                onChange={e => setRuaManual(e.target.value)}
-              />
-              <div className="row-inputs">
-                <input 
-                  placeholder="Nº" 
-                  className="input-manual small"
-                  value={numManual}
-                  onChange={e => setNumManual(e.target.value)}
-                />
-                <input 
-                  ref={bairroRef}
-                  placeholder="Bairro (Obrigatório)" 
-                  className="input-manual"
-                  value={bairroManual}
-                  onChange={e => setBairroManual(e.target.value)}
-                />
-              </div>
-              <div className="row-inputs">
-                <input 
-                  placeholder="Cidade" 
-                  className="input-manual"
-                  value={cidadeManual}
-                  onChange={e => setCidadeManual(e.target.value)}
-                />
-                <input 
-                  placeholder="Estado" 
-                  className="input-manual small"
-                  value={estadoManual}
-                  onChange={e => setEstadoManual(e.target.value)}
-                />
-              </div>
-               <input 
-                  placeholder="País" 
-                  className="input-manual"
-                  value={paisManual}
-                  onChange={e => setPaisManual(e.target.value)}
-                />
-              
-              <p className="manual-help">
-                Pesquisando próximo a: <strong>
-                  {bairroManual 
-                    ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
-                    : 'Preencha o endereço'}
-                </strong>
-              </p>
-            </div>
-          )}
-        </div>
       </header>
 
       <p className="slogan">Mais simples que o Google</p>
 
-      <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
+      {/* ÁREA DE TÍTULO E TOGGLE DE LOCALIZAÇÃO (ALTERADO) */}
+      <div className="section-header-row">
+        <button 
+          className="btn-link-left"
+          onClick={() => setUsarOutroLocal(!usarOutroLocal)}
+        >
+          {usarOutroLocal ? '📍 Usar meu GPS' : '🗺️ Buscar em outro local'}
+        </button>
+        <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
+      </div>
+
+      {/* FORMULÁRIO DE ENDEREÇO MANUAL (REPOSICIONADO E LARGURA TOTAL) */}
+      {usarOutroLocal && (
+        <div className="manual-address-form">
+          <div className="row-inputs">
+            <input 
+              placeholder="Rua (Opcional)" 
+              className="input-manual"
+              style={{ flex: 2 }}
+              value={ruaManual}
+              onChange={e => setRuaManual(e.target.value)}
+            />
+            <input 
+              placeholder="Nº" 
+              className="input-manual"
+              style={{ flex: 1 }}
+              value={numManual}
+              onChange={e => setNumManual(e.target.value)}
+            />
+          </div>
+          
+          <input 
+            ref={bairroRef}
+            placeholder="Bairro (Obrigatório)" 
+            className="input-manual"
+            value={bairroManual}
+            onChange={e => setBairroManual(e.target.value)}
+          />
+      
+          <div className="row-inputs">
+            <input 
+              placeholder="Cidade" 
+              className="input-manual"
+              style={{ flex: 2 }}
+              value={cidadeManual}
+              onChange={e => setCidadeManual(e.target.value)}
+            />
+            <input 
+              placeholder="UF" 
+              className="input-manual"
+              style={{ flex: 1 }}
+              value={estadoManual}
+              onChange={e => setEstadoManual(e.target.value)}
+            />
+          </div>
+           <input 
+              placeholder="País" 
+              className="input-manual"
+              value={paisManual}
+              onChange={e => setPaisManual(e.target.value)}
+            />
+          
+          <p className="manual-help">
+            Pesquisando próximo a: <strong>
+              {bairroManual 
+                ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
+                : 'Preencha o endereço'}
+            </strong>
+          </p>
+        </div>
+      )}
       
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
@@ -439,7 +443,7 @@ export default function Home() {
         .main-wrapper { max-width: 480px;
           margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif;
         }
-        .header { margin-bottom: 10px;
+        .header { margin-bottom: 20px;
         }
         .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center;
         }
@@ -450,33 +454,56 @@ export default function Home() {
         .gps-status { margin: 0; font-size: 0.75rem; color: #666;
         }
         
-        /* ESTILOS NOVOS PARA BUSCA MANUAL */
-        .location-toggle-area {
-          text-align: center;
-          margin-top: 10px;
+        /* NOVA ÁREA DE TÍTULO E LINK */
+        .section-header-row {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 5px;
+          margin-bottom: 15px;
         }
-        .btn-link {
-          background: none; border: none; color: #3182ce; font-size: 0.85rem;
-          text-decoration: underline; cursor: pointer; padding: 5px;
+        .btn-link-left {
+          background: none;
+          border: none; color: #3182ce; font-size: 0.9rem;
+          text-decoration: underline; cursor: pointer; padding: 0;
+          font-weight: 600;
         }
+        .section-title { font-size: 1rem; color: #4A5568; font-weight: 600; margin: 0;
+        }
+
+        /* ESTILOS ATUALIZADOS DO FORMULÁRIO */
         .manual-address-form {
-          background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0;
-          margin-top: 10px; animation: fadeIn 0.3s;
+          background: #fff;
+          padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0;
+          margin-bottom: 20px; 
+          width: 100%;
+          box-sizing: border-box; /* Garante que padding não estoure a largura */
+          animation: fadeIn 0.3s;
         }
         .input-manual {
-          width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #CBD5E0;
-          border-radius: 8px; font-size: 0.9rem; box-sizing: border-box;
+          width: 100%;
+          padding: 12px; 
+          margin-bottom: 8px; 
+          border: 1px solid #CBD5E0;
+          border-radius: 8px; font-size: 1rem; 
+          box-sizing: border-box;
         }
-        .row-inputs { display: flex; gap: 8px; }
-        .small { width: 30%; }
-        .manual-help { font-size: 0.75rem; color: #666; margin: 0; text-align: left; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .row-inputs { 
+          display: flex; 
+          gap: 10px;
+          width: 100%;
+        }
+        .manual-help { font-size: 0.75rem; color: #666; margin: 0; text-align: left;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px);
+        } to { opacity: 1; transform: translateY(0); } }
         /* FIM ESTILOS NOVOS */
 
-        .slogan { text-align: left; color: #28D07E; font-weight: 600; margin-bottom: 25px; font-size: 0.95rem;
-          margin-top: 15px; }
-        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600;
+        .slogan { text-align: left;
+          color: #28D07E; font-weight: 600; margin-bottom: 15px; font-size: 0.95rem;
+          margin-top: 10px;
         }
+        
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
         }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px;
