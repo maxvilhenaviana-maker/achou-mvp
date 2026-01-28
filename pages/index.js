@@ -315,77 +315,7 @@ export default function Home() {
 
       <p className="slogan">Mais simples que o Google</p>
 
-      {/* ÁREA DE TÍTULO E TOGGLE DE LOCALIZAÇÃO (ALTERADO) */}
-      <div className="section-header-row">
-        <button 
-          className="btn-link-left"
-          onClick={() => setUsarOutroLocal(!usarOutroLocal)}
-        >
-          {usarOutroLocal ? '📍 Usar meu GPS' : '🗺️ Buscar em outro local'}
-        </button>
-        <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
-      </div>
-
-      {/* FORMULÁRIO DE ENDEREÇO MANUAL (REPOSICIONADO E LARGURA TOTAL) */}
-      {usarOutroLocal && (
-        <div className="manual-address-form">
-          <div className="row-inputs">
-            <input 
-              placeholder="Rua (Opcional)" 
-              className="input-manual"
-              style={{ flex: 2 }}
-              value={ruaManual}
-              onChange={e => setRuaManual(e.target.value)}
-            />
-            <input 
-              placeholder="Nº" 
-              className="input-manual"
-              style={{ flex: 1 }}
-              value={numManual}
-              onChange={e => setNumManual(e.target.value)}
-            />
-          </div>
-          
-          <input 
-            ref={bairroRef}
-            placeholder="Bairro (Obrigatório)" 
-            className="input-manual"
-            value={bairroManual}
-            onChange={e => setBairroManual(e.target.value)}
-          />
-      
-          <div className="row-inputs">
-            <input 
-              placeholder="Cidade" 
-              className="input-manual"
-              style={{ flex: 2 }}
-              value={cidadeManual}
-              onChange={e => setCidadeManual(e.target.value)}
-            />
-            <input 
-              placeholder="UF" 
-              className="input-manual"
-              style={{ flex: 1 }}
-              value={estadoManual}
-              onChange={e => setEstadoManual(e.target.value)}
-            />
-          </div>
-           <input 
-              placeholder="País" 
-              className="input-manual"
-              value={paisManual}
-              onChange={e => setPaisManual(e.target.value)}
-            />
-          
-          <p className="manual-help">
-            Pesquisando próximo a: <strong>
-              {bairroManual 
-                ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
-                : 'Preencha o endereço'}
-            </strong>
-          </p>
-        </div>
-      )}
+      <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
       
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
@@ -405,6 +335,76 @@ export default function Home() {
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
         />
         <button onClick={() => handleSearch()} className="search-btn" disabled={loading}>🔍</button>
+      </div>
+
+      {/* ÁREA MOVIDA PARA DEPOIS DA BARRA DE PESQUISA */}
+      <div className="location-toggle-area">
+        <button 
+          className="btn-link-location"
+          onClick={() => setUsarOutroLocal(!usarOutroLocal)}
+        >
+          {usarOutroLocal ? '📍 Usar meu GPS atual' : '🗺️ Buscar em outro local'}
+        </button>
+
+        {usarOutroLocal && (
+          <div className="manual-address-form">
+            <div className="row-inputs">
+              <input 
+                placeholder="Rua (Opcional)" 
+                className="input-manual"
+                style={{ flex: 2 }}
+                value={ruaManual}
+                onChange={e => setRuaManual(e.target.value)}
+              />
+              <input 
+                placeholder="Nº" 
+                className="input-manual"
+                style={{ flex: 1 }}
+                value={numManual}
+                onChange={e => setNumManual(e.target.value)}
+              />
+            </div>
+            
+            <input 
+              ref={bairroRef}
+              placeholder="Bairro (Obrigatório)" 
+              className="input-manual"
+              value={bairroManual}
+              onChange={e => setBairroManual(e.target.value)}
+            />
+        
+            <div className="row-inputs">
+              <input 
+                placeholder="Cidade" 
+                className="input-manual"
+                style={{ flex: 2 }}
+                value={cidadeManual}
+                onChange={e => setCidadeManual(e.target.value)}
+              />
+              <input 
+                placeholder="UF" 
+                className="input-manual"
+                style={{ flex: 1 }}
+                value={estadoManual}
+                onChange={e => setEstadoManual(e.target.value)}
+              />
+            </div>
+             <input 
+                placeholder="País" 
+                className="input-manual"
+                value={paisManual}
+                onChange={e => setPaisManual(e.target.value)}
+              />
+            
+            <p className="manual-help">
+              Pesquisando próximo a: <strong>
+                {bairroManual 
+                  ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
+                  : 'Preencha o endereço'}
+              </strong>
+            </p>
+          </div>
+        )}
       </div>
 
       {loading && (
@@ -454,30 +454,31 @@ export default function Home() {
         .gps-status { margin: 0; font-size: 0.75rem; color: #666;
         }
         
-        /* NOVA ÁREA DE TÍTULO E LINK */
-        .section-header-row {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 5px;
-          margin-bottom: 15px;
+        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600;
         }
-        .btn-link-left {
+        
+        /* ESTILOS DA ÁREA DE BUSCA EM OUTRO LOCAL */
+        .location-toggle-area {
+          text-align: left;
+          margin-top: 15px;
+          margin-bottom: 20px;
+          width: 100%;
+        }
+        .btn-link-location {
           background: none;
           border: none; color: #3182ce; font-size: 0.9rem;
           text-decoration: underline; cursor: pointer; padding: 0;
           font-weight: 600;
-        }
-        .section-title { font-size: 1rem; color: #4A5568; font-weight: 600; margin: 0;
+          margin-bottom: 10px;
+          display: inline-block;
         }
 
-        /* ESTILOS ATUALIZADOS DO FORMULÁRIO */
+        /* ESTILOS DO FORMULÁRIO MANUAL */
         .manual-address-form {
           background: #fff;
           padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0;
-          margin-bottom: 20px; 
           width: 100%;
-          box-sizing: border-box; /* Garante que padding não estoure a largura */
+          box-sizing: border-box; 
           animation: fadeIn 0.3s;
         }
         .input-manual {
@@ -497,11 +498,10 @@ export default function Home() {
         }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px);
         } to { opacity: 1; transform: translateY(0); } }
-        /* FIM ESTILOS NOVOS */
 
         .slogan { text-align: left;
-          color: #28D07E; font-weight: 600; margin-bottom: 15px; font-size: 0.95rem;
-          margin-top: 10px;
+          color: #28D07E; font-weight: 600; margin-bottom: 25px; font-size: 0.95rem;
+          margin-top: 15px;
         }
         
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
