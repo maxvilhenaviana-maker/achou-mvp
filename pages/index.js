@@ -25,8 +25,10 @@ function ResultCard({ content, onRedo }) {
   const shareWA = () => {
     // Evento de Conversão: Share WhatsApp
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
-    // Texto do WhatsApp mantido conforme solicitação
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
+    
+    // ALTERAÇÃO: Incluída a informação de distância no corpo da mensagem
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
+    
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
