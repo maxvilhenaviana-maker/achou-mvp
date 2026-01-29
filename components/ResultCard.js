@@ -28,8 +28,8 @@ export default function ResultCard({ content }) {
   };
 
   const shareWA = () => {
-    // ALTERAÇÃO: Incluída a informação de distância no corpo da mensagem
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
+    // ALTERAÇÃO: Incluída a informação de distância no corpo da mensagem e corrigido link para www
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: www.achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
