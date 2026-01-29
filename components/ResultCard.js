@@ -28,8 +28,8 @@ export default function ResultCard({ content }) {
   };
 
   const shareWA = () => {
-    // ALTERAÇÃO AQUI: Texto do WhatsApp atualizado
-    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
+    // ALTERAÇÃO: Incluída a informação de distância no corpo da mensagem
+    const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
@@ -57,7 +57,6 @@ export default function ResultCard({ content }) {
 
       {/* Detalhes Técnicos */}
       <div className="details-box">
-        {/* ALTERAÇÃO AQUI: Adicionado campo de Horário para consistência */}
         {local.horario && local.horario !== "Consulte" && local.horario !== "24h" && (
           <div className="detail-row" style={{ color: '#E53E3E', fontWeight: 'bold' }}>
             <span className="icon">🕒</span>
@@ -86,7 +85,6 @@ export default function ResultCard({ content }) {
       </div>
 
       <style jsx>{`
-        /* Container principal - Garante que nada saia daqui */
         .card-container {
           background-color: #ffffff;
           border-radius: 16px;
@@ -100,7 +98,6 @@ export default function ResultCard({ content }) {
           box-sizing: border-box;
           animation: slideUp 0.5s ease;
         }
-
         .card-header {
           display: flex;
           justify-content: space-between;
@@ -108,7 +105,6 @@ export default function ResultCard({ content }) {
           margin-bottom: 10px;
           gap: 10px;
         }
-
         .card-title {
           margin: 0;
           font-size: 1.25rem;
@@ -116,7 +112,6 @@ export default function ResultCard({ content }) {
           font-weight: 800;
           line-height: 1.2;
         }
-
         .status-badge {
           font-size: 0.75rem;
           padding: 4px 8px;
@@ -127,22 +122,18 @@ export default function ResultCard({ content }) {
         }
         .aberto { background: #E6FFFA; color: #28D07E; }
         .fechado { background: #FFF5F5; color: #F56565; }
-
         .card-reason {
           font-size: 0.9rem;
           color: #666;
           margin-bottom: 20px;
           line-height: 1.5;
         }
-
-        /* Botões lado a lado ocupando 50% cada */
         .buttons-row {
           display: flex;
           gap: 10px;
           margin-bottom: 20px;
           width: 100%;
         }
-
         .btn {
           flex: 1;
           padding: 12px;
@@ -160,7 +151,6 @@ export default function ResultCard({ content }) {
         .btn:active { opacity: 0.8; }
         .btn-dark { background: #0F2133; color: white; }
         .btn-green { background: #25D366; color: white; }
-
         .details-box {
           background: #F8F9FB;
           border-radius: 8px;
@@ -169,7 +159,6 @@ export default function ResultCard({ content }) {
           flex-direction: column;
           gap: 10px;
         }
-
         .detail-row {
           display: flex;
           align-items: flex-start;
@@ -177,9 +166,7 @@ export default function ResultCard({ content }) {
           font-size: 0.9rem;
           color: #333;
         }
-        
         .icon { min-width: 20px; }
-
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
