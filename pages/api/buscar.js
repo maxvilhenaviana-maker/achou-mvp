@@ -27,7 +27,7 @@ const CLIENTES_ACHOU = [
 ];
 
 export default async function handler(req, res) {
-  // [NOVO] Conexão com o banco usando sua variável DATABASE_URL
+  // [ADAPTADO] Conexão com o banco usando sua variável DATABASE_URL
   const sql = neon(process.env.DATABASE_URL);
 
   // --- BLOQUEIO GEOGRÁFICO ---
@@ -139,11 +139,11 @@ export default async function handler(req, res) {
       }
     } catch (errGeo) {}
 
-    // [NOVO] Função interna para salvar na sua tabela 'metricas_busca'
+    // [ADAPTADO] Função salva diretamente na sua tabela 'log_buscas_achou'
     const salvarNoBanco = async (nomeFinal) => {
       try {
         await sql`
-          INSERT INTO metricas_busca 
+          INSERT INTO log_buscas_achou 
           (origem_bairro, origem_cidade, origem_pais, tipo_estabelecimento, nome_estabelecimento, busca_bairro, busca_cidade, busca_pais)
           VALUES (
             ${bairroUsuario}, ${cidadeLog}, ${paisLog}, 
@@ -195,7 +195,7 @@ export default async function handler(req, res) {
     const nearbyData = await nearbyResp.json();
     let listaResultados = nearbyData.results || [];
 
-    // Filtros de qualidade (Sua lógica original)
+    // Filtros de qualidade
     listaResultados = listaResultados.filter(place => {
       const nome = place.name.toLowerCase();
       const types = (place.types || []).join(' ').toLowerCase();
@@ -232,7 +232,7 @@ export default async function handler(req, res) {
 
     const distKm = calcularDistancia(parseFloat(lat), parseFloat(lng), place.geometry?.location?.lat, place.geometry?.location?.lng);
 
-    // Horário (Sua lógica original)
+    // Horário
     let horarioFechamento = "Consulte";
     try {
       if (place.opening_hours && place.opening_hours.periods) {
@@ -250,7 +250,7 @@ export default async function handler(req, res) {
 
     let motivo = "Este é o local aberto mais próximo identificado.";
     
-    // OpenAI para o Motivo (Sua lógica original)
+    // OpenAI para o Motivo
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -270,7 +270,7 @@ export default async function handler(req, res) {
       } catch (_) { }
     }
 
-    // [NOVO] Salva a métrica final da busca bem-sucedida
+    // [SALVAR NO BANCO]
     await salvarNoBanco(place.name || "Sem Nome");
 
     return res.status(200).json({
