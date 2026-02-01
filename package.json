@@ -13,6 +13,7 @@
     "react-dom": "18.2.0",
     "swr": "^2.2.0",
     "openai": "^4.52.0",
-    "@vercel/analytics": "latest"
+    "@vercel/analytics": "latest",
+    "@neondatabase/serverless": "^0.9.0"
   }
 }
