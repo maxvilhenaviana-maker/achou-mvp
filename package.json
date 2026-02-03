@@ -14,6 +14,6 @@
     "swr": "^2.2.0",
     "openai": "^4.52.0",
     "@vercel/analytics": "latest",
-    "@neondatabase/serverless": "^0.9.0"
+    "@vercel-analytics/react": "latest" 
   }
 }
