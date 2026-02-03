@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
-// [NOVO] Importação do driver do Neon
 import { neon } from '@neondatabase/serverless';
+
+// [CORREÇÃO] Forçar runtime NodeJS para garantir que conexões com banco de dados funcionem corretamente
+// e evitem problemas de Edge Runtime com o driver do Neon.
+export const runtime = 'nodejs';
 
 export const config = {
   api: {
@@ -27,7 +30,11 @@ const CLIENTES_ACHOU = [
 ];
 
 export default async function handler(req, res) {
-  // [ADAPTADO] Conexão com o banco usando sua variável DATABASE_URL
+  // [CORREÇÃO] Verificação explicita da variável de ambiente para debug
+  if (!process.env.DATABASE_URL) {
+    console.error("ERRO CRÍTICO: DATABASE_URL não definida!");
+  }
+  
   const sql = neon(process.env.DATABASE_URL);
 
   // --- BLOQUEIO GEOGRÁFICO ---
@@ -68,7 +75,6 @@ export default async function handler(req, res) {
         const cityComp = components.find(c => c.types.includes("administrative_area_level_2")) ||
                          components.find(c => c.types.includes("locality"));
         if (cityComp) cidade = cityComp.long_name;
-
         const stateComp = components.find(c => c.types.includes("administrative_area_level_1"));
         if (stateComp) estado = stateComp.short_name;
 
@@ -84,6 +90,31 @@ export default async function handler(req, res) {
 
   let lat = null;
   let lng = null;
+  
+  // Variáveis para Log (Inicializadas para garantir que existam no final)
+  let bairroUsuario = "Desconhecido";
+  let cidadeLog = "Desconhecido";
+  let paisLog = "Brasil";
+  const termoBusca = busca.toLowerCase();
+
+  // Função interna para salvar métrica de forma centralizada
+  const salvarNoBanco = async (nomeFinal) => {
+    try {
+      console.log(`Tentando salvar log: ${nomeFinal} em ${bairroUsuario}`);
+      await sql`
+        INSERT INTO log_buscas_achou 
+        (origem_bairro, origem_cidade, origem_pais, tipo_estabelecimento, nome_estabelecimento, busca_bairro, busca_cidade, busca_pais)
+        VALUES (
+          ${bairroUsuario}, ${cidadeLog}, ${paisLog}, 
+          ${termoBusca}, ${nomeFinal}, 
+          ${bairroUsuario}, ${cidadeLog}, ${paisLog}
+        )
+      `;
+      console.log("Log salvo com sucesso!");
+    } catch (e) {
+      console.error("Erro ao gravar no banco:", e);
+    }
+  };
 
   try {
     // --- DEFINIÇÃO DO PONTO DE BUSCA ---
@@ -91,11 +122,12 @@ export default async function handler(req, res) {
       const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}&key=${GOOGLE_KEY}`;
       const geocodeResp = await fetch(geocodeUrl);
       const geocodeData = await geocodeResp.json();
-
       if (geocodeData.status === 'OK' && geocodeData.results.length > 0) {
         lat = geocodeData.results[0].geometry.location.lat;
         lng = geocodeData.results[0].geometry.location.lng;
       } else {
+        // Log de erro antes de retornar
+        await salvarNoBanco("Erro Localização Manual");
         return res.status(200).json({
              resultado: JSON.stringify({
                nome: "Localização não encontrada",
@@ -113,48 +145,26 @@ export default async function handler(req, res) {
       lng = splitCoords[1];
     }
 
-    const termoBusca = busca.toLowerCase();
-    
-    // Variáveis para o Banco de Dados
-    let bairroUsuario = "Desconhecido";
-    let cidadeLog = "Desconhecido";
-    let paisLog = "Brasil";
-
     // 2️⃣ IDENTIFICAR LOCALIZAÇÃO PARA O LOG
     try {
       const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
       const geoResp = await fetch(geoUrl);
       const geoData = await geoResp.json();
-
       if (geoData.results && geoData.results.length > 0) {
         const components = geoData.results[0].address_components;
         const neighborhood = components.find(c => c.types.includes("sublocality") || c.types.includes("neighborhood"));
         if (neighborhood) bairroUsuario = neighborhood.long_name;
 
-        const cityComp = components.find(c => c.types.includes("administrative_area_level_2")) || components.find(c => c.types.includes("locality"));
+        const cityComp = components.find(c => c.types.includes("administrative_area_level_2")) ||
+                         components.find(c => c.types.includes("locality"));
         if (cityComp) cidadeLog = cityComp.long_name;
 
         const countryComp = components.find(c => c.types.includes("country"));
         if (countryComp) paisLog = countryComp.long_name;
       }
-    } catch (errGeo) {}
-
-    // [ADAPTADO] Função salva diretamente na sua tabela 'log_buscas_achou'
-    const salvarNoBanco = async (nomeFinal) => {
-      try {
-        await sql`
-          INSERT INTO log_buscas_achou 
-          (origem_bairro, origem_cidade, origem_pais, tipo_estabelecimento, nome_estabelecimento, busca_bairro, busca_cidade, busca_pais)
-          VALUES (
-            ${bairroUsuario}, ${cidadeLog}, ${paisLog}, 
-            ${termoBusca}, ${nomeFinal}, 
-            ${bairroUsuario}, ${cidadeLog}, ${paisLog}
-          )
-        `;
-      } catch (e) {
-        console.error("Erro ao gravar no banco:", e);
-      }
-    };
+    } catch (errGeo) {
+      console.error("Erro no Geocoding reverso:", errGeo);
+    }
 
     // 3️⃣ CHECK CLIENTE PRIORITÁRIO
     const clienteMatch = CLIENTES_ACHOU.find(c => 
@@ -162,7 +172,6 @@ export default async function handler(req, res) {
       bairroUsuario.toLowerCase() === c.bairro.toLowerCase() &&
       !excluir.includes(c.nome)
     );
-
     if (clienteMatch) {
       await salvarNoBanco(clienteMatch.nome);
       return res.status(200).json({
@@ -180,10 +189,8 @@ export default async function handler(req, res) {
       'supermercado': 'supermarket', 'padaria': 'bakery',
       'posto de gasolina': 'gas_station', 'lazer': 'park'
     };
-
     const typeSelected = tiposGoogle[termoBusca] || '';
     let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&opennow=true&key=${GOOGLE_KEY}`;
-
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
@@ -207,7 +214,6 @@ export default async function handler(req, res) {
       }
       return true;
     });
-
     const melhor = listaResultados.find(place => !excluir.includes(place.name));
 
     if (!melhor) {
@@ -229,7 +235,6 @@ export default async function handler(req, res) {
     const detailsResp = await fetch(detailsUrl);
     const detailsData = await detailsResp.json();
     const place = detailsData.result || {};
-
     const distKm = calcularDistancia(parseFloat(lat), parseFloat(lng), place.geometry?.location?.lat, place.geometry?.location?.lng);
 
     // Horário
@@ -246,10 +251,10 @@ export default async function handler(req, res) {
           horarioFechamento = "24h";
         }
       }
-    } catch (e) { horarioFechamento = "Consulte"; }
+    } catch (e) { horarioFechamento = "Consulte";
+    }
 
     let motivo = "Este é o local aberto mais próximo identificado.";
-    
     // OpenAI para o Motivo
     if (OPENAI_KEY) {
       try {
@@ -271,6 +276,7 @@ export default async function handler(req, res) {
     }
 
     // [SALVAR NO BANCO]
+    // Await garantido antes da resposta
     await salvarNoBanco(place.name || "Sem Nome");
 
     return res.status(200).json({
@@ -287,7 +293,12 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("Erro geral no handler:", err);
+    // Tenta salvar o erro no banco se possível
+    try {
+      await salvarNoBanco(`Erro Interno: ${err.message}`);
+    } catch(e) {}
+    
     return res.status(500).json({ error: "Erro interno no servidor" });
   }
 }
