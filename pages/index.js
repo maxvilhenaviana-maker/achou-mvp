@@ -65,21 +65,33 @@ function ResultCard({ content, onRedo }) {
       </div>
 
       <style jsx>{`
-        .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease; }
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px; }
-        .card-title { margin: 0; font-size: 1.2rem; color: #0F2133; font-weight: 800; }
+        .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease;
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px;
+        }
+        .card-title { margin: 0; font-size: 1.2rem; color: #0F2133; font-weight: 800;
+        }
         .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-transform: uppercase; }
-        .aberto { background: #E6FFFA; color: #28D07E; }
-        .fechado { background: #FFF5F5; color: #F56565; }
-        .card-reason { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.4; }
-        .buttons-row { display: flex; gap: 8px; margin-bottom: 20px; }
+        .aberto { background: #E6FFFA; color: #28D07E;
+        }
+        .fechado { background: #FFF5F5; color: #F56565;
+        }
+        .card-reason { font-size: 0.9rem; color: #666; margin-bottom: 20px; line-height: 1.4;
+        }
+        .buttons-row { display: flex; gap: 8px; margin-bottom: 20px;
+        }
         .btn-card { flex: 1; padding: 12px 5px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
-        .btn-dark { background: #0F2133; color: white; }
-        .btn-green { background: #25D366; color: white; }
-        .btn-blue { background: #3182ce; color: white; }
+        .btn-dark { background: #0F2133; color: white;
+        }
+        .btn-green { background: #25D366; color: white;
+        }
+        .btn-blue { background: #3182ce; color: white;
+        }
         .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
-        .detail-row { display: flex; gap: 10px; color: #333; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .detail-row { display: flex; gap: 10px; color: #333;
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px);
+        } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
@@ -267,6 +279,7 @@ export default function Home() {
           term: query,
           mode: usarOutroLocal ? 'Manual' : 'GPS'
         });
+
       } else {
         alert('Nenhum resultado encontrado.');
       }
@@ -294,7 +307,7 @@ export default function Home() {
         </div>
       </header>
 
-      <p className="slogan">Mais simples que o Google</p>
+      {/* Frase "Mais simples que o Google" removida conforme solicitado */}
 
       <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
       
@@ -318,7 +331,6 @@ export default function Home() {
         <button onClick={() => handleSearch()} className="search-btn" disabled={loading}>🔍</button>
       </div>
 
-      {/* ÁREA MOVIDA PARA DEPOIS DA BARRA DE PESQUISA */}
       <div className="location-toggle-area">
         <button 
           className="btn-link-location"
@@ -378,7 +390,7 @@ export default function Home() {
               />
             
             <p className="manual-help">
-              Pesquisando próximo a: <strong>
+               Pesquisando próximo a: <strong>
                 {bairroManual 
                   ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
                   : 'Preencha o endereço'}
@@ -421,12 +433,18 @@ export default function Home() {
       </footer>
       
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
-        .header { margin-bottom: 20px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
-        .logo-img { width: 48px; height: 48px; border-radius: 10px; }
-        .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
-        .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
+        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif;
+        }
+        .header { margin-bottom: 20px;
+        }
+        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center;
+        }
+        .logo-img { width: 48px; height: 48px; border-radius: 10px;
+        }
+        .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133;
+        }
+        .gps-status { margin: 0; font-size: 0.75rem; color: #666;
+        }
         
         .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
         
@@ -463,24 +481,34 @@ export default function Home() {
           width: 100%;
         }
         .manual-help { font-size: 0.75rem; color: #666; margin: 0; text-align: left; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px);
+        } to { opacity: 1; transform: translateY(0); } }
 
-        .slogan { text-align: left; color: #28D07E; font-weight: 600; margin-bottom: 25px; font-size: 0.95rem; margin-top: 15px; }
+        /* Slogan removido, estilo removido */
         
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .emoji { font-size: 1.8rem; margin-bottom: 4px; }
-        .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
-        .search-bar { display: flex; gap: 8px; }
+        .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer;
+        }
+        .emoji { font-size: 1.8rem; margin-bottom: 4px;
+        }
+        .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase;
+        }
+        .search-bar { display: flex; gap: 8px;
+        }
         .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; }
         .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; }
-        .loading-area { text-align: center; margin-top: 30px; color: #718096; }
-        .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        .loading-area { text-align: center; margin-top: 30px; color: #718096;
+        }
+        .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;
+        }
         .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; }
         .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 12px; font-size: 0.85rem; }
-        .footer-content p { margin-bottom: 12px; line-height: 1.5; }
-        .footer-content p:last-child { margin-bottom: 0; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .footer-content p { margin-bottom: 12px; line-height: 1.5;
+        }
+        .footer-content p:last-child { margin-bottom: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg);
+        } }
       `}</style>
     </div>
   );
