@@ -324,16 +324,17 @@ export default function Home() {
     <div className="main-wrapper">
       <header className="header">
         <div className="logo-area">
-          {/* Logo Original */}
-          <img src="/logo-512.png" alt="Achou" className="logo-img" />
-          
-          {/* Texto do App */}
-          <div className="header-text-area">
-            <h1 className="app-name">achou.net.br</h1>
-            <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
+          {/* AGRUPAMENTO ESQUERDA: Logo + Texto */}
+          <div className="left-side">
+            <img src="/logo-512.png" alt="Achou" className="logo-img" />
+            <div className="header-text-area">
+              <h1 className="app-name">achou.net.br</h1>
+              <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
+            </div>
           </div>
 
-          {/* NOVA POSIÇÃO DA IMAGEM DA CAMPANHA (Botão Direito) */}
+          {/* LADO DIREITO: Nova Posição da Imagem da Campanha */}
+          {/* Alinhado à direita com Mercado (via space-between) e topo com logo (via flex-start) */}
           {campanhaImg && (
             <Link href={campanhaImg.link} legacyBehavior>
               <a className="header-campanha-link">
@@ -352,8 +353,6 @@ export default function Home() {
 
       <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
       
-      {/* Imagem antiga abaixo do título foi removida e movida para o header acima */}
-
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
           <button key={cat.id} className="btn-icon" onClick={() => handleSearch(cat.id)} disabled={loading}>
@@ -491,32 +490,41 @@ export default function Home() {
         /* HEADER REESTRUTURADO */
         .logo-area { 
           display: flex; 
-          align-items: center; 
-          justify-content: space-between; /* Distribui logo na esquerda, texto meio, imagem direita */
+          align-items: flex-start; /* Alinhamento Superior */
+          justify-content: space-between; /* Separa Esquerda e Direita */
           gap: 10px; 
+          width: 100%;
         }
+        
+        /* Container para Logo + Texto ficarem juntos na esquerda */
+        .left-side {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
         .logo-img { 
           width: 48px; 
           height: 48px; 
           border-radius: 10px;
         }
         .header-text-area {
-          flex: 1; /* Ocupa o espaço central */
-          padding-left: 5px;
+          /* Ajuste fino se necessário */
         }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133;
         }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666;
         }
 
-        /* ESTILO DA NOVA IMAGEM NO HEADER (Tamanho de botão/ícone) */
+        /* ESTILO DA IMAGEM NO HEADER */
         .header-campanha-link {
           display: block;
           cursor: pointer;
         }
         .header-campanha-img {
-          width: 48px;
-          height: 48px;
+          /* Tamanho ajustado para parecer um botão (maior que logo, similar a botão de busca) */
+          width: 56px; 
+          height: 56px;
           object-fit: cover;
           border-radius: 12px;
           border: 1px solid #E2E8F0;
