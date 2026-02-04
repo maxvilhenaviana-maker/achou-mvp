@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as gtag from '../lib/gtag';
 import { track } from '@vercel/analytics/react';
+import Link from 'next/link';
 
 // --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content, onRedo }) {
@@ -65,13 +66,15 @@ function ResultCard({ content, onRedo }) {
       </div>
 
       <style jsx>{`
-        .card-container { background: white; border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease;
+        .card-container { background: white;
+          border-radius: 16px; padding: 20px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #f0f0f0; animation: slideUp 0.4s ease;
         }
         .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px;
         }
         .card-title { margin: 0; font-size: 1.2rem; color: #0F2133; font-weight: 800;
         }
-        .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-transform: uppercase; }
+        .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 6px; font-weight: bold;
+          text-transform: uppercase; }
         .aberto { background: #E6FFFA; color: #28D07E;
         }
         .fechado { background: #FFF5F5; color: #F56565;
@@ -80,14 +83,16 @@ function ResultCard({ content, onRedo }) {
         }
         .buttons-row { display: flex; gap: 8px; margin-bottom: 20px;
         }
-        .btn-card { flex: 1; padding: 12px 5px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.8rem; }
+        .btn-card { flex: 1; padding: 12px 5px; border: none; border-radius: 8px;
+          font-weight: bold; cursor: pointer; font-size: 0.8rem; }
         .btn-dark { background: #0F2133; color: white;
         }
         .btn-green { background: #25D366; color: white;
         }
         .btn-blue { background: #3182ce; color: white;
         }
-        .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
+        .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex;
+          flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; color: #333;
         }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px);
@@ -127,13 +132,17 @@ const detectarCategoria = (termo) => {
 };
 
 export default function Home() {
-  const [buscaLivre, setBuscaLivre] = useState('');
+  // Alteração solicitada: Pré-preenchimento da busca
+  const [buscaLivre, setBuscaLivre] = useState('Posto para doação de sangue');
   const [localizacao, setLocalizacao] = useState('');
   const [gpsAtivo, setGpsAtivo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [ultimaBusca, setUltimaBusca] = useState('');
   const [excluirNomes, setExcluirNomes] = useState([]);
+
+  // Estado para controlar a imagem da campanha (Doação de Sangue ou Órgãos)
+  const [campanhaImg, setCampanhaImg] = useState(null);
 
   // Estados para busca manual
   const [usarOutroLocal, setUsarOutroLocal] = useState(false);
@@ -149,6 +158,22 @@ export default function Home() {
   const bairroRef = useRef(null);
 
   useEffect(() => {
+    // Lógica para alternar imagem da campanha social (50% de chance para cada)
+    const randomChoice = Math.random();
+    if (randomChoice < 0.5) {
+      setCampanhaImg({ 
+        src: '/doacao_sangue.jpg', 
+        link: '/doacao_sangue', 
+        alt: 'Doe Sangue' 
+      });
+    } else {
+      setCampanhaImg({ 
+        src: '/doacao_orgao.jpg', 
+        link: '/doacao_orgao', 
+        alt: 'Doe Órgãos' 
+      });
+    }
+
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -311,6 +336,21 @@ export default function Home() {
 
       <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
       
+      {/* --- INSERÇÃO DA IMAGEM DA CAMPANHA (Alterna entre Sangue e Órgãos) --- */}
+      {campanhaImg && (
+        <div className="campanha-container">
+          <Link href={campanhaImg.link} legacyBehavior>
+            <a className="campanha-link">
+              <img 
+                src={campanhaImg.src} 
+                alt={campanhaImg.alt} 
+                className="campanha-img"
+              />
+            </a>
+          </Link>
+        </div>
+      )}
+
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
           <button key={cat.id} className="btn-icon" onClick={() => handleSearch(cat.id)} disabled={loading}>
@@ -390,7 +430,7 @@ export default function Home() {
               />
             
             <p className="manual-help">
-               Pesquisando próximo a: <strong>
+              Pesquisando próximo a: <strong>
                 {bairroManual 
                   ? `${bairroManual}, ${cidadeManual} - ${estadoManual}` 
                   : 'Preencha o endereço'}
@@ -429,6 +469,13 @@ export default function Home() {
           <p>
             <strong>3)</strong> Verifique se a localização está correta ou use a função "Buscar em outro local" para pesquisar para terceiros.
           </p>
+          {/* Itens 4 e 5 adicionados conforme solicitado */}
+          <p>
+            <strong>4)</strong> <Link href="/doacao_sangue">Saiba mais sobre Doação de Sangue</Link>
+          </p>
+          <p>
+            <strong>5)</strong> <Link href="/doacao_orgao">Saiba mais sobre Doação de Órgãos</Link>
+          </p>
         </div>
       </footer>
       
@@ -447,10 +494,35 @@ export default function Home() {
         }
         
         .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
+
+        /* ESTILO DA IMAGEM DA CAMPANHA */
+        .campanha-container {
+          margin-bottom: 20px;
+          width: 100%;
+        }
+        .campanha-link {
+          display: block;
+          width: 100%;
+          cursor: pointer;
+        }
+        .campanha-img {
+          width: 100%;
+          height: auto;
+          max-height: 100px;
+          object-fit: cover;
+          border-radius: 12px;
+          border: 1px solid #E2E8F0;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+          transition: transform 0.2s;
+        }
+        .campanha-img:active {
+          transform: scale(0.98);
+        }
         
         /* ESTILOS DA ÁREA DE BUSCA EM OUTRO LOCAL */
         .location-toggle-area {
-          text-align: left; margin-top: 15px;
+          text-align: left;
+          margin-top: 15px;
           margin-bottom: 20px;
           width: 100%;
         }
