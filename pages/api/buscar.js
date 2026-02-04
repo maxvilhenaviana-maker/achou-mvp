@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   if (!process.env.DATABASE_URL) {
     console.error("ERRO CRÍTICO: DATABASE_URL não definida!");
   }
-   
+  
   const sql = neon(process.env.DATABASE_URL);
 
   // --- BLOQUEIO GEOGRÁFICO ---
@@ -50,9 +50,7 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  // [ALTERAÇÃO 1] Adicionado 'campanhaAtiva' na desestruturação
-  const { busca, localizacao, excluir = [], endereco, modo, campanhaAtiva } = req.body;
-  
+  const { busca, localizacao, excluir = [], endereco, modo } = req.body;
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
@@ -92,7 +90,7 @@ export default async function handler(req, res) {
 
   let lat = null;
   let lng = null;
-   
+  
   // Variáveis para Log (Inicializadas para garantir que existam no final)
   let bairroUsuario = "Desconhecido";
   let cidadeLog = "Desconhecido";
@@ -131,13 +129,13 @@ export default async function handler(req, res) {
         // Log de erro antes de retornar
         await salvarNoBanco("Erro Localização Manual");
         return res.status(200).json({
-              resultado: JSON.stringify({
-                nome: "Localização não encontrada",
-                endereco: "Verifique os dados (Bairro, Cidade, Estado)",
-                status: "Erro",
-                motivo: "Não conseguimos localizar o endereço exato.",
-                horario: "", distancia: "", telefone: ""
-              })
+             resultado: JSON.stringify({
+               nome: "Localização não encontrada",
+               endereco: "Verifique os dados (Bairro, Cidade, Estado)",
+               status: "Erro",
+               motivo: "Não conseguimos localizar o endereço exato.",
+               horario: "", distancia: "", telefone: ""
+             })
         });
       }
     } else {
@@ -257,18 +255,9 @@ export default async function handler(req, res) {
     }
 
     let motivo = "Este é o local aberto mais próximo identificado.";
-    
-    // [ALTERAÇÃO 2] OpenAI para o Motivo com Frase de Campanha
+    // OpenAI para o Motivo
     if (OPENAI_KEY) {
       try {
-        // Define a frase de instrução extra com base na campanha ativa
-        let instrucaoCampanha = "";
-        if (campanhaAtiva === 'sangue') {
-          instrucaoCampanha = "IMPORTANTE: Ao final da sua resposta, insira uma quebra de linha e exatamente esta frase em itálico: '🩸 Doe sangue, doe vida! Uma única doação pode salvar até 4 vidas.'";
-        } else if (campanhaAtiva === 'orgao') {
-          instrucaoCampanha = "IMPORTANTE: Ao final da sua resposta, insira uma quebra de linha e exatamente esta frase em itálico: '💚 Seja um doador de órgãos e avise sua família. A vida continua!'";
-        }
-
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
@@ -276,11 +265,7 @@ export default async function handler(req, res) {
             model: "gpt-4o-mini",
             temperature: 0.3,
             messages: [
-              { 
-                role: "system", 
-                // Injeta a instrução de campanha no prompt do sistema
-                content: `Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser próximo. ${instrucaoCampanha}` 
-              },
+              { role: "system", content: "Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser próximo." },
               { role: "user", content: `Local: ${place.name}, Distância: ${distKm}km. O usuário buscou por: ${busca}.` }
             ]
           })
@@ -313,7 +298,7 @@ export default async function handler(req, res) {
     try {
       await salvarNoBanco(`Erro Interno: ${err.message}`);
     } catch(e) {}
-     
+    
     return res.status(500).json({ error: "Erro interno no servidor" });
   }
 }
