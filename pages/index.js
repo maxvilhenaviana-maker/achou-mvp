@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as gtag from '../lib/gtag';
-import { track } from '@vercel-analytics/react';
+import { track } from '@vercel/analytics'; // Ajustado para o nome correto da dependência
 
 // --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content, onRedo }) {
@@ -54,7 +54,6 @@ function ResultCard({ content, onRedo }) {
            <span>🕒</span> Aberto 24 horas
          </div>
         )}
-        
         <div className="detail-row"><span>📍</span> {local.endereco}</div>
         <div className="detail-row"><span>📏</span> {local.distancia}</div>
         <div className="detail-row"><span>📞</span> {local.telefone}</div>
@@ -83,21 +82,18 @@ function ResultCard({ content, onRedo }) {
 
 // --- PÁGINA PRINCIPAL ---
 const CATEGORIAS = [
-  { id: 'Farmácia', icon: '💊' },
-  { id: 'Restaurante', icon: '🍴' },
-  { id: 'Mercado', icon: '🛒' },
-  { id: 'Padaria', icon: '🍞' },
-  { id: 'Posto de gasolina', icon: '⛽' },
-  { id: 'Borracharia', icon: '🛞' }
+  { id: 'Farmácia', icon: '💊' }, { id: 'Restaurante', icon: '🍴' },
+  { id: 'Mercado', icon: '🛒' }, { id: 'Padaria', icon: '🍞' },
+  { id: 'Posto de gasolina', icon: '⛽' }, { id: 'Borracharia', icon: '🛞' }
 ];
 
 const detectarCategoria = (termo) => {
   const t = termo.toLowerCase();
   if (t.includes('farmácia') || t.includes('drogaria')) return 'Farmácia';
-  if (t.includes('restaurante') || t.includes('comida')) return 'Restaurante';
-  if (t.includes('supermercado') || t.includes('mercado')) return 'Supermercado';
-  if (t.includes('padaria') || t.includes('pão')) return 'Padaria';
-  if (t.includes('posto') || t.includes('gasolina')) return 'Posto';
+  if (t.includes('restaurante')) return 'Restaurante';
+  if (t.includes('mercado')) return 'Supermercado';
+  if (t.includes('padaria')) return 'Padaria';
+  if (t.includes('posto')) return 'Posto';
   if (t.includes('borracharia')) return 'Borracharia';
   return 'Outros';
 };
@@ -110,8 +106,8 @@ export default function Home() {
   const [resultado, setResultado] = useState(null);
   const [ultimaBusca, setUltimaBusca] = useState('');
   const [excluirNomes, setExcluirNomes] = useState([]);
-  
-  // Estados para localização manual
+  const [campanhaAtiva, setCampanhaAtiva] = useState(null); // Estado da Campanha
+
   const [usarOutroLocal, setUsarOutroLocal] = useState(false);
   const [ruaManual, setRuaManual] = useState('');
   const [numManual, setNumManual] = useState('');
@@ -120,15 +116,11 @@ export default function Home() {
   const [estadoManual, setEstadoManual] = useState('');
   const [paisManual, setPaisManual] = useState('Brasil');
 
-  // NOVO: Estado da Campanha
-  const [campanhaAtiva, setCampanhaAtiva] = useState(null);
-
   const bairroRef = useRef(null);
 
   useEffect(() => {
-    // Sorteia a campanha ao carregar (50% cada)
-    const sorteio = Math.random() < 0.5 ? 'sangue' : 'orgao';
-    setCampanhaAtiva(sorteio);
+    // Sorteio da campanha
+    setCampanhaAtiva(Math.random() < 0.5 ? 'sangue' : 'orgao');
 
     if (!('geolocation' in navigator)) return;
     navigator.geolocation.getCurrentPosition(
@@ -145,8 +137,8 @@ export default function Home() {
         .then(data => {
           if (data.cidade) setCidadeManual(data.cidade);
           if (data.estado) setEstadoManual(data.estado);
-        })
-        .catch(err => console.error(err));
+          if (data.pais) setPaisManual(data.pais);
+        });
       },
       () => setGpsAtivo(false),
       { enableHighAccuracy: true, timeout: 10000 }
@@ -186,23 +178,30 @@ export default function Home() {
         body: JSON.stringify({ 
           busca: query, 
           localizacao: localizacao || '0,0',
-          endereco: usarOutroLocal ? enderecoFormatado : null,
+          endereco: usarOutroLocal ? enderecoFormatado : null, 
           excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes,
-          campanha: campanhaAtiva // Envia a campanha sorteada para a API
+          campanha: campanhaAtiva // Envia a campanha ativa para a API
         })
       });
 
       const json = await resp.json();
       if (json.resultado) {
         setResultado(json.resultado);
-        const categoriaMapeada = detectarCategoria(query);
+        let dadosLocais = {};
+        try { dadosLocais = JSON.parse(json.resultado); } catch(e) {}
         
-        // Mantendo seus trackers originais
-        track('Search Demand', {
-          category: categoriaMapeada,
-          term: query,
-          mode: usarOutroLocal ? 'Manual' : 'GPS'
+        const cat = detectarCategoria(query);
+        const bairro = dadosLocais.bairro_usuario || 'Não identificado';
+
+        gtag.event({ action: 'search_result', category: cat, label: `${cat} | ${bairro}`, value: 1 });
+        
+        // Vercel Analytics Track
+        track('Search Demand', { 
+            category: cat, 
+            term: query, 
+            campanha: campanhaAtiva 
         });
+
       } else {
         alert('Nenhum resultado encontrado.');
       }
@@ -225,12 +224,13 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Banner da Campanha */}
+      {/* BANNER DE CAMPANHA INSERIDO AQUI */}
       {campanhaAtiva && (
-        <div className="campaign-banner">
+        <div className="campaign-banner" style={{ marginBottom: '20px', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
           <img 
-            src={campanhaAtiva === 'sangue' ? '/campanha-sangue.jpg' : '/campanha-orgao.jpg'} 
-            alt="Campanha Social" 
+            src={campanhaAtiva === 'sangue' ? '/Doação Sangue.jpg' : '/Doação Orgão.jpg'} 
+            style={{ width: '100%', display: 'block' }}
+            alt="Campanha Social"
           />
         </div>
       )}
@@ -247,13 +247,7 @@ export default function Home() {
       </div>
 
       <div className="search-bar">
-        <input
-          value={buscaLivre}
-          onChange={(e) => setBuscaLivre(e.target.value)}
-          placeholder="O que você precisa agora?"
-          className="search-input"
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-        />
+        <input value={buscaLivre} onChange={(e) => setBuscaLivre(e.target.value)} placeholder="O que você precisa agora?" className="search-input" onKeyPress={(e) => e.key === 'Enter' && handleSearch()} />
         <button onClick={() => handleSearch()} className="search-btn" disabled={loading}>🔍</button>
       </div>
 
@@ -261,7 +255,6 @@ export default function Home() {
         <button className="btn-link-location" onClick={() => setUsarOutroLocal(!usarOutroLocal)}>
           {usarOutroLocal ? '📍 Usar meu GPS atual' : '🗺️ Buscar em outro local'}
         </button>
-
         {usarOutroLocal && (
           <div className="manual-address-form">
             <div className="row-inputs">
@@ -277,48 +270,37 @@ export default function Home() {
         )}
       </div>
 
-      {loading && (
-        <div className="loading-area">
-          <div className="spinner"></div>
-          <p>Buscando a próxima opção...</p>
-        </div>
-      )}
-
+      {loading && <div className="loading-area"><div className="spinner"></div><p>Buscando a próxima opção...</p></div>}
       {resultado && <ResultCard content={resultado} onRedo={handleRedo} />}
 
       <footer className="footer-info">
         <p className="footer-title">Importante:</p>
         <div className="footer-content">
-          <p><strong>1)</strong> A indicação de "Aberto" é baseada no Google e pode oscilar. Convém ligar antes.</p>
-          <p><strong>2)</strong> Para salvar: No iPhone use 'Compartilhar' {'>'} 'Tela de Início'. No Android use o menu do Chrome.</p>
+          <p><strong>1) Para salvar:</strong> No Android use 'Adicionar à tela inicial'. No iPhone use 'Compartilhar' {'>'} 'Tela de Início'.</p>
+          <p><strong>2)</strong> O status "Aberto" é do Google, confirme por telefone se necessário.</p>
         </div>
       </footer>
-      
+
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
-        .header { margin-bottom: 20px; }
+        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; background-color: #F8F9FB; font-family: sans-serif; }
         .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
-        .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
-        .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
-        .campaign-banner { width: 100%; margin-bottom: 20px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .campaign-banner img { width: 100%; display: block; }
-        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
-        .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+        .app-name { font-size: 1.4rem; font-weight: 800; color: #0F2133; margin: 0; }
+        .section-title { font-size: 1rem; color: #4A5568; margin: 20px 0 15px; font-weight: 600; }
+        .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .emoji { font-size: 1.8rem; margin-bottom: 4px; }
+        .emoji { font-size: 1.8rem; }
         .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
-        .search-bar { display: flex; gap: 8px; }
-        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; }
-        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; }
-        .btn-link-location { background: none; border: none; color: #3182ce; font-size: 0.9rem; text-decoration: underline; cursor: pointer; margin: 15px 0; font-weight: 600; }
-        .manual-address-form { background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0; margin-bottom: 20px; }
-        .input-manual { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #CBD5E0; border-radius: 8px; }
+        .search-bar { display: flex; gap: 8px; margin-top: 20px; }
+        .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; }
+        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; }
+        .btn-link-location { background: none; border: none; color: #3182ce; text-decoration: underline; margin: 15px 0; font-weight: 600; cursor: pointer; }
+        .manual-address-form { background: white; padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0; }
+        .input-manual { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #CBD5E0; border-radius: 8px; box-sizing: border-box; }
         .row-inputs { display: flex; gap: 8px; }
-        .loading-area { text-align: center; margin-top: 30px; }
-        .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .footer-info { margin-top: 40px; border-top: 1px solid #E2E8F0; padding-top: 20px; font-size: 0.75rem; color: #718096; }
+        .footer-info { margin-top: 40px; font-size: 0.75rem; color: #718096; }
       `}</style>
     </div>
   );
