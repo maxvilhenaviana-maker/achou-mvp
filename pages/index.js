@@ -324,11 +324,27 @@ export default function Home() {
     <div className="main-wrapper">
       <header className="header">
         <div className="logo-area">
+          {/* Logo Original */}
           <img src="/logo-512.png" alt="Achou" className="logo-img" />
-          <div>
+          
+          {/* Texto do App */}
+          <div className="header-text-area">
             <h1 className="app-name">achou.net.br</h1>
             <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
           </div>
+
+          {/* NOVA POSIÇÃO DA IMAGEM DA CAMPANHA (Botão Direito) */}
+          {campanhaImg && (
+            <Link href={campanhaImg.link} legacyBehavior>
+              <a className="header-campanha-link">
+                <img 
+                  src={campanhaImg.src} 
+                  alt={campanhaImg.alt} 
+                  className="header-campanha-img"
+                />
+              </a>
+            </Link>
+          )}
         </div>
       </header>
 
@@ -336,20 +352,7 @@ export default function Home() {
 
       <h2 className="section-title">Precisou, clicou abaixo, achou:</h2>
       
-      {/* --- INSERÇÃO DA IMAGEM DA CAMPANHA (Alterna entre Sangue e Órgãos) --- */}
-      {campanhaImg && (
-        <div className="campanha-container">
-          <Link href={campanhaImg.link} legacyBehavior>
-            <a className="campanha-link">
-              <img 
-                src={campanhaImg.src} 
-                alt={campanhaImg.alt} 
-                className="campanha-img"
-              />
-            </a>
-          </Link>
-        </div>
-      )}
+      {/* Imagem antiga abaixo do título foi removida e movida para o header acima */}
 
       <div className="grid-menu">
         {CATEGORIAS.map((cat) => (
@@ -484,40 +487,47 @@ export default function Home() {
         }
         .header { margin-bottom: 20px;
         }
-        .logo-area { display: flex; align-items: center; gap: 12px; justify-content: center;
+        
+        /* HEADER REESTRUTURADO */
+        .logo-area { 
+          display: flex; 
+          align-items: center; 
+          justify-content: space-between; /* Distribui logo na esquerda, texto meio, imagem direita */
+          gap: 10px; 
         }
-        .logo-img { width: 48px; height: 48px; border-radius: 10px;
+        .logo-img { 
+          width: 48px; 
+          height: 48px; 
+          border-radius: 10px;
+        }
+        .header-text-area {
+          flex: 1; /* Ocupa o espaço central */
+          padding-left: 5px;
         }
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133;
         }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666;
         }
-        
-        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
 
-        /* ESTILO DA IMAGEM DA CAMPANHA */
-        .campanha-container {
-          margin-bottom: 20px;
-          width: 100%;
-        }
-        .campanha-link {
+        /* ESTILO DA NOVA IMAGEM NO HEADER (Tamanho de botão/ícone) */
+        .header-campanha-link {
           display: block;
-          width: 100%;
           cursor: pointer;
         }
-        .campanha-img {
-          width: 100%;
-          height: auto;
-          max-height: 100px;
+        .header-campanha-img {
+          width: 48px;
+          height: 48px;
           object-fit: cover;
           border-radius: 12px;
           border: 1px solid #E2E8F0;
           box-shadow: 0 2px 5px rgba(0,0,0,0.05);
           transition: transform 0.2s;
         }
-        .campanha-img:active {
-          transform: scale(0.98);
+        .header-campanha-img:active {
+          transform: scale(0.95);
         }
+        
+        .section-title { font-size: 1rem; color: #4A5568; margin-bottom: 15px; font-weight: 600; }
         
         /* ESTILOS DA ÁREA DE BUSCA EM OUTRO LOCAL */
         .location-toggle-area {
@@ -556,8 +566,6 @@ export default function Home() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px);
         } to { opacity: 1; transform: translateY(0); } }
 
-        /* Slogan removido, estilo removido */
-        
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer;
         }
