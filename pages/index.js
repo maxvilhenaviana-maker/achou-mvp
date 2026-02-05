@@ -121,7 +121,9 @@ export default function Home() {
   const [ultimaBusca, setUltimaBusca] = useState('');
   const [excluirNomes, setExcluirNomes] = useState([]);
   const [campanhaImg, setCampanhaImg] = useState(null);
+  const [tipoCampanha, setTipoCampanha] = useState(''); // Estado para guardar qual campanha está ativa (sangue ou orgaos)
   const [usarOutroLocal, setUsarOutroLocal] = useState(false);
+  
   const [ruaManual, setRuaManual] = useState('');
   const [numManual, setNumManual] = useState('');
   const [bairroManual, setBairroManual] = useState('');
@@ -134,8 +136,10 @@ export default function Home() {
     const randomChoice = Math.random();
     if (randomChoice < 0.5) {
       setCampanhaImg({ src: '/doacao_sangue.jpg', link: '/doacao_sangue', alt: 'Doe Sangue' });
+      setTipoCampanha('sangue');
     } else {
       setCampanhaImg({ src: '/doacao_orgao.jpg', link: '/doacao_orgao', alt: 'Doe Órgãos' });
+      setTipoCampanha('orgaos');
     }
 
     if (!('geolocation' in navigator)) return;
@@ -144,6 +148,7 @@ export default function Home() {
         const coordString = `${pos.coords.latitude},${pos.coords.longitude}`;
         setLocalizacao(coordString);
         setGpsAtivo(true);
+        
         fetch('/api/buscar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -180,28 +185,40 @@ export default function Home() {
   async function handleSearch(termo, listaExclusaoManual = []) {
     const query = termo || buscaLivre;
     if (!query) return alert('O que você precisa agora?');
+
     let enderecoFormatado = "";
+    
     if (usarOutroLocal) {
       if (!bairroManual || !cidadeManual || !estadoManual || !paisManual) {
         return alert("Para buscar em outro local, preencha Bairro, Cidade, Estado e País.");
       }
+      
       let parteRua = "";
       if (ruaManual) {
         parteRua = ruaManual;
         if (numManual) parteRua += `, ${numManual}`;
       }
+      
       if (parteRua) {
         enderecoFormatado = `${parteRua} - ${bairroManual}, ${cidadeManual} - ${estadoManual}, ${paisManual}`;
       } else {
         enderecoFormatado = `${bairroManual}, ${cidadeManual} - ${estadoManual}, ${paisManual}`;
       }
     }
+
     if (listaExclusaoManual.length === 0) {
       setExcluirNomes([]);
     }
+
     setUltimaBusca(query);
     setLoading(true);
     setResultado(null);
+
+    // [ALTERAÇÃO 3] Fechar as caixas de texto do modo manual e trazer a resposta para o campo de visão
+    if (usarOutroLocal) {
+      setUsarOutroLocal(false);
+    }
+
     try {
       const resp = await fetch('/api/buscar', {
         method: 'POST',
@@ -209,17 +226,22 @@ export default function Home() {
         body: JSON.stringify({ 
           busca: query, 
           localizacao: localizacao || '0,0',
-          endereco: usarOutroLocal ? enderecoFormatado : null, 
-          excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes 
+          endereco: enderecoFormatado || null, // Se usarOutroLocal era true, enderecoFormatado está preenchido
+          excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes,
+          campanha: tipoCampanha // [ALTERAÇÃO 1] Enviando o tipo de campanha para o backend
         })
       });
+
       const json = await resp.json();
+
       if (json.resultado) {
         setResultado(json.resultado);
         let dadosLocais = {};
         try { dadosLocais = JSON.parse(json.resultado); } catch(e) { dadosLocais = {} }
+        
         const categoriaMapeada = detectarCategoria(query);
         const bairroDetectado = dadosLocais.bairro_usuario || 'Não identificado';
+
         gtag.event({
           action: 'view_item',
           currency: "BRL",
@@ -232,8 +254,9 @@ export default function Home() {
               item_list_name: "Busca Local"
           }]
         });
+
         gtag.event({ action: 'search_result', category: categoriaMapeada, label: `${categoriaMapeada} | ${bairroDetectado}`, value: 1 });
-        track('Search Demand', { category: categoriaMapeada, neighborhood: bairroDetectado, term: query, mode: usarOutroLocal ? 'Manual' : 'GPS' });
+        track('Search Demand', { category: categoriaMapeada, neighborhood: bairroDetectado, term: query, mode: usarOutroLocal ? 'Manual' : 'GPS' }); // Note: Aqui usarOutroLocal pode estar false por causa da UI, mas o log original usa o estado anterior. Se precisar de precisão absoluta, teria que guardar em variavel.
       } else {
         alert('Nenhum resultado encontrado.');
       }
@@ -286,6 +309,12 @@ export default function Home() {
         <input
           value={buscaLivre}
           onChange={(e) => setBuscaLivre(e.target.value)}
+          // [ALTERAÇÃO 4] Limpa a caixa se o texto for o padrão e foca no cursor
+          onFocus={() => {
+            if (buscaLivre === 'Posto para doação de sangue') {
+              setBuscaLivre('');
+            }
+          }}
           placeholder="O que você precisa agora?"
           className="search-input"
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -348,14 +377,14 @@ export default function Home() {
         /* AJUSTE DA IMAGEM DA CAMPANHA */
         .header-campanha-link { display: block; cursor: pointer; width: calc((100% - 24px) / 3); }
         .header-campanha-img { 
-          width: 100%; 
+          width: 100%;
           height: 82px; /* Altura calculada para igualar os botões do grid */
-          object-fit: contain; 
+          object-fit: contain;
           background: white;
           border-radius: 12px; 
           border: 1px solid #E2E8F0; 
           box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
-          transition: transform 0.2s; 
+          transition: transform 0.2s;
         }
         .header-campanha-img:active { transform: scale(0.95); }
         
