@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { busca, localizacao, excluir = [], endereco, modo } = req.body;
+  const { busca, localizacao, excluir = [], endereco, modo, campanha } = req.body;
   const GOOGLE_KEY = process.env.GOOGLEMAPS_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
@@ -75,6 +75,7 @@ export default async function handler(req, res) {
         const cityComp = components.find(c => c.types.includes("administrative_area_level_2")) ||
                          components.find(c => c.types.includes("locality"));
         if (cityComp) cidade = cityComp.long_name;
+
         const stateComp = components.find(c => c.types.includes("administrative_area_level_1"));
         if (stateComp) estado = stateComp.short_name;
 
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
       const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}&key=${GOOGLE_KEY}`;
       const geocodeResp = await fetch(geocodeUrl);
       const geocodeData = await geocodeResp.json();
+      
       if (geocodeData.status === 'OK' && geocodeData.results.length > 0) {
         lat = geocodeData.results[0].geometry.location.lat;
         lng = geocodeData.results[0].geometry.location.lng;
@@ -150,6 +152,7 @@ export default async function handler(req, res) {
       const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
       const geoResp = await fetch(geoUrl);
       const geoData = await geoResp.json();
+      
       if (geoData.results && geoData.results.length > 0) {
         const components = geoData.results[0].address_components;
         const neighborhood = components.find(c => c.types.includes("sublocality") || c.types.includes("neighborhood"));
@@ -172,6 +175,7 @@ export default async function handler(req, res) {
       bairroUsuario.toLowerCase() === c.bairro.toLowerCase() &&
       !excluir.includes(c.nome)
     );
+    
     if (clienteMatch) {
       await salvarNoBanco(clienteMatch.nome);
       return res.status(200).json({
@@ -189,8 +193,10 @@ export default async function handler(req, res) {
       'supermercado': 'supermarket', 'padaria': 'bakery',
       'posto de gasolina': 'gas_station', 'lazer': 'park'
     };
+    
     const typeSelected = tiposGoogle[termoBusca] || '';
     let nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&opennow=true&key=${GOOGLE_KEY}`;
+    
     if (typeSelected) {
       nearbyUrl += `&type=${typeSelected}`;
     } else {
@@ -214,6 +220,7 @@ export default async function handler(req, res) {
       }
       return true;
     });
+
     const melhor = listaResultados.find(place => !excluir.includes(place.name));
 
     if (!melhor) {
@@ -224,7 +231,8 @@ export default async function handler(req, res) {
           endereco: "Não informado",
           status: "Fechado ou Esgotado",
           horario: "-", distancia: "—", telefone: "Não informado",
-          motivo: "Não encontramos estabelecimentos abertos agora perto de você.",
+          // [ALTERAÇÃO 2] Mensagem específica quando não há estabelecimentos abertos
+          motivo: "Neste momento este tipo de estabelecimento não está aberto. Tente novamente no horário comercial",
           bairro_usuario: bairroUsuario
         })
       });
@@ -235,6 +243,7 @@ export default async function handler(req, res) {
     const detailsResp = await fetch(detailsUrl);
     const detailsData = await detailsResp.json();
     const place = detailsData.result || {};
+    
     const distKm = calcularDistancia(parseFloat(lat), parseFloat(lng), place.geometry?.location?.lat, place.geometry?.location?.lng);
 
     // Horário
@@ -245,17 +254,18 @@ export default async function handler(req, res) {
         now.setHours(now.getHours() - 3); 
         const todayDay = now.getDay(); 
         const period = place.opening_hours.periods.find(p => p.open && p.open.day === todayDay);
+        
         if (period && period.close) {
           horarioFechamento = `${period.close.time.substring(0, 2)}:${period.close.time.substring(2, 4)}`;
         } else if (place.opening_hours.open_now && !period) {
           horarioFechamento = "24h";
         }
       }
-    } catch (e) { horarioFechamento = "Consulte";
-    }
+    } catch (e) { horarioFechamento = "Consulte"; }
 
     let motivo = "Este é o local aberto mais próximo identificado.";
-    // OpenAI para o Motivo
+    
+    // OpenAI para o Motivo com [ALTERAÇÃO 1] de incentivo
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -265,7 +275,7 @@ export default async function handler(req, res) {
             model: "gpt-4o-mini",
             temperature: 0.3,
             messages: [
-              { role: "system", content: "Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser próximo." },
+              { role: "system", content: `Você é um assistente de busca local. Responda em uma frase curta por que este local é a melhor escolha baseando-se no fato de estar aberto agora e ser próximo. Ao final, adicione uma frase curta incentivando a ${campanha === 'sangue' ? 'doação de sangue' : 'doação de órgãos'}.` },
               { role: "user", content: `Local: ${place.name}, Distância: ${distKm}km. O usuário buscou por: ${busca}.` }
             ]
           })
@@ -278,7 +288,7 @@ export default async function handler(req, res) {
     // [SALVAR NO BANCO]
     // Await garantido antes da resposta
     await salvarNoBanco(place.name || "Sem Nome");
-
+    
     return res.status(200).json({
       resultado: JSON.stringify({
         nome: place.name || "Não informado",
