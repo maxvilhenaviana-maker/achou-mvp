@@ -3,7 +3,7 @@ import * as gtag from '../lib/gtag';
 import { track } from '@vercel/analytics/react';
 import Link from 'next/link';
 
-// --- COMPONENTE INTERNO: ResultCard ---
+// --- COMPONENTE INTERNO: ResultCard (Mantido igual) ---
 function ResultCard({ content, onRedo }) {
   let local = {};
   try {
@@ -14,7 +14,6 @@ function ResultCard({ content, onRedo }) {
 
   const copyToClipboard = () => {
     if (local.endereco && local.endereco !== "Verifique os dados digitados") {
-      // Evento de Conversão: Cópia para GPS
       gtag.event({ action: 'conversion_gps', category: 'Engagement', label: local.nome });
       navigator.clipboard.writeText(local.endereco);
       alert("📋 Endereço copiado para o GPS!");
@@ -24,7 +23,6 @@ function ResultCard({ content, onRedo }) {
   };
 
   const shareWA = () => {
-    // Evento de Conversão: Share WhatsApp
     gtag.event({ action: 'conversion_whatsapp', category: 'Engagement', label: local.nome });
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: www.achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
@@ -101,14 +99,6 @@ const detectarCategoria = (termo) => {
   if (t.includes('padaria') || t.includes('pão')) return 'Padaria';
   if (t.includes('posto') || t.includes('combustivel') || t.includes('gasolina')) return 'Posto';
   if (t.includes('borracharia') || t.includes('pneu')) return 'Borracharia';
-  if (t.includes('pet') || t.includes('veterin') || t.includes('animal') || t.includes('racao')) return 'Pet Shop';
-  if (t.includes('cafe') || t.includes('cafeteria')) return 'Café';
-  if (t.includes('academia') || t.includes('fitness') || t.includes('crossfit') || t.includes('treino')) return 'Academia';
-  if (t.includes('barbearia') || t.includes('salao') || t.includes('beleza') || t.includes('cabelo') || t.includes('manicure')) return 'Beleza';
-  if (t.includes('vacina') || t.includes('saude') || t.includes('posto de saude')) return 'Saúde';
-  if (t.includes('oficina') || t.includes('mecanic') || t.includes('automoti') || t.includes('carro')) return 'Oficina';
-  if (t.includes('hotel') || t.includes('pousada') || t.includes('hospedagem') || t.includes('motel')) return 'Hospedagem';
-  if (t.includes('flor') || t.includes('planta') || t.includes('jardim')) return 'Floricultura';
   return 'Outros';
 };
 
@@ -121,8 +111,11 @@ export default function Home() {
   const [ultimaBusca, setUltimaBusca] = useState('');
   const [excluirNomes, setExcluirNomes] = useState([]);
   const [campanhaImg, setCampanhaImg] = useState(null);
-  const [tipoCampanha, setTipoCampanha] = useState(''); // Estado para guardar qual campanha está ativa (sangue ou orgaos)
+  const [tipoCampanha, setTipoCampanha] = useState('');
   const [usarOutroLocal, setUsarOutroLocal] = useState(false);
+  
+  // Controle do Menu
+  const [menuAberto, setMenuAberto] = useState(false);
   
   const [ruaManual, setRuaManual] = useState('');
   const [numManual, setNumManual] = useState('');
@@ -214,7 +207,6 @@ export default function Home() {
     setLoading(true);
     setResultado(null);
 
-    // [ALTERAÇÃO 3] Fechar as caixas de texto do modo manual e trazer a resposta para o campo de visão
     if (usarOutroLocal) {
       setUsarOutroLocal(false);
     }
@@ -226,9 +218,9 @@ export default function Home() {
         body: JSON.stringify({ 
           busca: query, 
           localizacao: localizacao || '0,0',
-          endereco: enderecoFormatado || null, // Se usarOutroLocal era true, enderecoFormatado está preenchido
+          endereco: enderecoFormatado || null,
           excluir: listaExclusaoManual.length > 0 ? listaExclusaoManual : excluirNomes,
-          campanha: tipoCampanha // [ALTERAÇÃO 1] Enviando o tipo de campanha para o backend
+          campanha: tipoCampanha
         })
       });
 
@@ -256,7 +248,7 @@ export default function Home() {
         });
 
         gtag.event({ action: 'search_result', category: categoriaMapeada, label: `${categoriaMapeada} | ${bairroDetectado}`, value: 1 });
-        track('Search Demand', { category: categoriaMapeada, neighborhood: bairroDetectado, term: query, mode: usarOutroLocal ? 'Manual' : 'GPS' }); // Note: Aqui usarOutroLocal pode estar false por causa da UI, mas o log original usa o estado anterior. Se precisar de precisão absoluta, teria que guardar em variavel.
+        track('Search Demand', { category: categoriaMapeada, neighborhood: bairroDetectado, term: query, mode: usarOutroLocal ? 'Manual' : 'GPS' });
       } else {
         alert('Nenhum resultado encontrado.');
       }
@@ -273,7 +265,25 @@ export default function Home() {
       <header className="header">
         <div className="logo-area">
           <div className="left-side">
-            <img src="/logo-512.png" alt="Achou" className="logo-img" />
+            {/* LOGO LINKADA PARA A PÁGINA SOBRE */}
+            <Link href="/sobre">
+              <img src="/logo-512.png" alt="Achou" className="logo-img" style={{cursor: 'pointer'}} />
+            </Link>
+            
+            {/* BOTÃO DO MENU HAMBÚRGUER */}
+            <button className="menu-trigger" onClick={() => setMenuAberto(!menuAberto)}>
+              ☰
+            </button>
+
+            {/* DROPDOWN MENU */}
+            {menuAberto && (
+              <div className="menu-dropdown">
+                <Link href="/sobre" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>ℹ️ Sobre o app</a></Link>
+                <Link href="/doacao_sangue" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>🩸 Doação de Sangue</a></Link>
+                <Link href="/doacao_orgao" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>🫀 Doação de Órgãos</a></Link>
+              </div>
+            )}
+
             <div className="header-text-area">
               <h1 className="app-name">achou.net.br</h1>
               <p className="gps-status">{gpsAtivo ? '🟢 Localização Ativada' : '⚪ Aguardando GPS...'}</p>
@@ -309,7 +319,6 @@ export default function Home() {
         <input
           value={buscaLivre}
           onChange={(e) => setBuscaLivre(e.target.value)}
-          // [ALTERAÇÃO 4] Limpa a caixa se o texto for o padrão e foca no cursor
           onFocus={() => {
             if (buscaLivre === 'Posto para doação de sangue') {
               setBuscaLivre('');
@@ -366,19 +375,39 @@ export default function Home() {
       </footer>
       
       <style jsx>{`
-        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; }
+        .main-wrapper { max-width: 480px; margin: 0 auto; padding: 20px; min-height: 100vh; background-color: #F8F9FB; font-family: sans-serif; position: relative; }
         .header { margin-bottom: 20px; }
-        .logo-area { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; width: 100%; }
+        .logo-area { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; width: 100%; position: relative; }
         .left-side { display: flex; align-items: center; gap: 10px; }
         .logo-img { width: 48px; height: 48px; border-radius: 10px; }
+        
+        /* ESTILOS DO MENU */
+        .menu-trigger { background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #0F2133; padding: 0 5px; }
+        .menu-dropdown { 
+          position: absolute; 
+          top: 55px; 
+          left: 10px; 
+          background: white; 
+          border: 1px solid #E2E8F0; 
+          border-radius: 12px; 
+          box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+          z-index: 100; 
+          display: flex; 
+          flex-direction: column; 
+          min-width: 200px;
+          overflow: hidden;
+        }
+        .menu-item { padding: 12px 16px; text-decoration: none; color: #0F2133; font-size: 0.9rem; border-bottom: 1px solid #F0F0F0; transition: background 0.2s; font-weight: 600; }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:hover { background-color: #F7FAFC; }
+
         .app-name { margin: 0; font-size: 1.4rem; font-weight: 800; color: #0F2133; }
         .gps-status { margin: 0; font-size: 0.75rem; color: #666; }
 
-        /* AJUSTE DA IMAGEM DA CAMPANHA */
         .header-campanha-link { display: block; cursor: pointer; width: calc((100% - 24px) / 3); }
         .header-campanha-img { 
           width: 100%;
-          height: 82px; /* Altura calculada para igualar os botões do grid */
+          height: 82px;
           object-fit: contain;
           background: white;
           border-radius: 12px; 
