@@ -77,7 +77,8 @@ function ResultCard({ content, onRedo }) {
         .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; color: #333; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>    </div>
+      `}</style>
+    </div>
   );
 }
 
@@ -180,7 +181,6 @@ export default function Home() {
     if (!query) return alert('O que você precisa agora?');
 
     let enderecoFormatado = "";
-    
     if (usarOutroLocal) {
       if (!bairroManual || !cidadeManual || !estadoManual || !paisManual) {
         return alert("Para buscar em outro local, preencha Bairro, Cidade, Estado e País.");
@@ -223,7 +223,6 @@ export default function Home() {
           campanha: tipoCampanha
         })
       });
-
       const json = await resp.json();
 
       if (json.resultado) {
@@ -246,7 +245,6 @@ export default function Home() {
               item_list_name: "Busca Local"
           }]
         });
-
         gtag.event({ action: 'search_result', category: categoriaMapeada, label: `${categoriaMapeada} | ${bairroDetectado}`, value: 1 });
         track('Search Demand', { category: categoriaMapeada, neighborhood: bairroDetectado, term: query, mode: usarOutroLocal ? 'Manual' : 'GPS' });
       } else {
@@ -328,12 +326,16 @@ export default function Home() {
           className="search-input"
           onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
         />
-        <button onClick={() => handleSearch()} className="search-btn" disabled={loading}>🔍</button>
+        {/* BOTÃO DE BUSCA ALTERADO CONFORME SOLICITAÇÃO */}
+        <button onClick={() => handleSearch()} className="search-btn" disabled={loading}>
+           🔍
+        </button>
       </div>
 
       <div className="location-toggle-area">
+        {/* ÍCONE DE MAPA SUBSTITUÍDO POR LUPA (que renderiza em 3D em mobile) */}
         <button className="btn-link-location" onClick={() => setUsarOutroLocal(!usarOutroLocal)}>
-          {usarOutroLocal ? '📍 Usar meu GPS atual' : '🗺️ Buscar em outro local'}
+          {usarOutroLocal ? '📍 Usar meu GPS atual' : '🔎 Buscar em outro local'}
         </button>
         {usarOutroLocal && (
           <div className="manual-address-form">
@@ -384,18 +386,8 @@ export default function Home() {
         /* ESTILOS DO MENU */
         .menu-trigger { background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #0F2133; padding: 0 5px; }
         .menu-dropdown { 
-          position: absolute; 
-          top: 55px; 
-          left: 10px; 
-          background: white; 
-          border: 1px solid #E2E8F0; 
-          border-radius: 12px; 
-          box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-          z-index: 100; 
-          display: flex; 
-          flex-direction: column; 
-          min-width: 200px;
-          overflow: hidden;
+          position: absolute; top: 55px; left: 10px; background: white; border: 1px solid #E2E8F0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 100;
+          display: flex; flex-direction: column; min-width: 200px; overflow: hidden;
         }
         .menu-item { padding: 12px 16px; text-decoration: none; color: #0F2133; font-size: 0.9rem; border-bottom: 1px solid #F0F0F0; transition: background 0.2s; font-weight: 600; }
         .menu-item:last-child { border-bottom: none; }
@@ -406,14 +398,7 @@ export default function Home() {
 
         .header-campanha-link { display: block; cursor: pointer; width: calc((100% - 24px) / 3); }
         .header-campanha-img { 
-          width: 100%;
-          height: 82px;
-          object-fit: contain;
-          background: white;
-          border-radius: 12px; 
-          border: 1px solid #E2E8F0; 
-          box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
-          transition: transform 0.2s;
+          width: 100%; height: 82px; object-fit: contain; background: white; border-radius: 12px; border: 1px solid #E2E8F0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: transform 0.2s;
         }
         .header-campanha-img:active { transform: scale(0.95); }
         
@@ -425,19 +410,41 @@ export default function Home() {
         .row-inputs { display: flex; gap: 10px; width: 100%; }
         .manual-help { font-size: 0.75rem; color: #666; margin: 0; text-align: left; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        
         .grid-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .btn-icon { background: white; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; cursor: pointer; min-height: 82px; }
         .emoji { font-size: 1.8rem; margin-bottom: 4px; }
         .label { font-size: 0.7rem; font-weight: 700; color: #4A5568; text-transform: uppercase; }
+        
         .search-bar { display: flex; gap: 8px; }
         .search-input { flex: 1; padding: 14px; border: 1px solid #CBD5E0; border-radius: 10px; font-size: 1rem; }
-        .search-btn { background: #0F2133; color: white; border: none; border-radius: 10px; width: 55px; cursor: pointer; }
+        
+        /* CSS ATUALIZADO DO BOTÃO DE BUSCA */
+        .search-btn { 
+          background: #28D07E; /* Fundo Verde */
+          color: white; 
+          border: none; 
+          border-radius: 10px; 
+          width: 55px; 
+          cursor: pointer; 
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 1.5rem; /* Lupa Aumentada */
+          transition: transform 0.1s;
+        }
+        .search-btn:active {
+          transform: scale(0.95);
+        }
+
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+        
         .footer-info { margin-top: 40px; padding: 20px 10px; border-top: 1px solid #E2E8F0; color: #718096; font-size: 0.75rem; }
         .footer-title { font-weight: 800; color: #4A5568; margin-bottom: 12px; font-size: 0.85rem; }
         .footer-content p { margin-bottom: 12px; line-height: 1.5; }
         @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>    </div>
+      `}</style>
+    </div>
   );
 }
