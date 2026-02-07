@@ -3,7 +3,7 @@ import * as gtag from '../lib/gtag';
 import { track } from '@vercel/analytics/react';
 import Link from 'next/link';
 
-// --- COMPONENTE INTERNO: ResultCard (Mantido igual) ---
+// --- COMPONENTE INTERNO: ResultCard ---
 function ResultCard({ content, onRedo }) {
   let local = {};
   try {
@@ -27,6 +27,11 @@ function ResultCard({ content, onRedo }) {
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: www.achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
+
+  // Tratamento para links (Maps e Tel)
+  const cleanPhone = local.telefone ? local.telefone.replace(/[^0-9]/g, '') : '';
+  // Link universal do Google Maps (abre app nativo no mobile)
+  const mapLink = local.endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(local.endereco)}` : '#';
 
   return (
     <div className="card-container">
@@ -56,9 +61,27 @@ function ResultCard({ content, onRedo }) {
          </div>
         )}
         
-        <div className="detail-row"><span>📍</span> {local.endereco}</div>
-        <div className="detail-row"><span>📏</span> {local.distancia}</div>
-        <div className="detail-row"><span>📞</span> {local.telefone}</div>
+        <div className="detail-row">
+            <span>📍</span> 
+            {/* Link Endereço */}
+            <a href={mapLink} target="_blank" rel="noopener noreferrer" className="info-link">
+                {local.endereco}
+            </a>
+        </div>
+        <div className="detail-row">
+            <span>📏</span> {local.distancia}
+        </div>
+        <div className="detail-row">
+            <span>📞</span> 
+            {/* Link Telefone */}
+            {cleanPhone ? (
+                <a href={`tel:${cleanPhone}`} className="info-link">
+                    {local.telefone}
+                </a>
+            ) : (
+                <span>{local.telefone}</span>
+            )}
+        </div>
       </div>
 
       <style jsx>{`
@@ -76,6 +99,8 @@ function ResultCard({ content, onRedo }) {
         .btn-blue { background: #3182ce; color: white; }
         .details-box { background: #F8F9FB; border-radius: 8px; padding: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 10px; }
         .detail-row { display: flex; gap: 10px; color: #333; }
+        /* Nova Classe para Links */
+        .info-link { color: #333; text-decoration: underline; text-decoration-color: #cbd5e0; cursor: pointer; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
@@ -114,7 +139,6 @@ export default function Home() {
   const [campanhaImg, setCampanhaImg] = useState(null);
   const [tipoCampanha, setTipoCampanha] = useState('');
   const [usarOutroLocal, setUsarOutroLocal] = useState(false);
-  
   // Controle do Menu
   const [menuAberto, setMenuAberto] = useState(false);
   
@@ -223,6 +247,7 @@ export default function Home() {
           campanha: tipoCampanha
         })
       });
+
       const json = await resp.json();
 
       if (json.resultado) {
@@ -333,7 +358,7 @@ export default function Home() {
       </div>
 
       <div className="location-toggle-area">
-        {/* ÍCONE DE MAPA SUBSTITUÍDO POR LUPA (que renderiza em 3D em mobile) */}
+        {/* ÍCONE DE MAPA SUBSTITUÍDO POR LUPA */}
         <button className="btn-link-location" onClick={() => setUsarOutroLocal(!usarOutroLocal)}>
           {usarOutroLocal ? '📍 Usar meu GPS atual' : '🔎 Buscar em outro local'}
         </button>
@@ -424,7 +449,7 @@ export default function Home() {
           background: #28D07E; /* Fundo Verde */
           color: white; 
           border: none; 
-          border-radius: 10px; 
+          border-radius: 10px;
           width: 55px; 
           cursor: pointer; 
           display: flex;
@@ -433,9 +458,7 @@ export default function Home() {
           font-size: 1.5rem; /* Lupa Aumentada */
           transition: transform 0.1s;
         }
-        .search-btn:active {
-          transform: scale(0.95);
-        }
+        .search-btn:active { transform: scale(0.95); }
 
         .loading-area { text-align: center; margin-top: 30px; color: #718096; }
         .spinner { width: 28px; height: 28px; border: 3px solid #E2E8F0; border-top-color: #28D07E; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px; }
