@@ -2,6 +2,7 @@ import React from 'react';
 
 export default function ResultCard({ content }) {
   let local = {};
+  
   // Tenta converter o texto da IA em Objeto JSON real
   try {
     local = JSON.parse(content);
@@ -28,10 +29,13 @@ export default function ResultCard({ content }) {
   };
 
   const shareWA = () => {
-    // ALTERAÇÃO: Incluída a informação de distância no corpo da mensagem e corrigido link para www
     const text = encodeURIComponent(`*${local.nome}*\n📍 ${local.endereco}\n🕒 ${local.status} (Fecha às ${local.horario || '?'})\n📞 ${local.telefone}\n📏 Distância: ${local.distancia}\n\nPrecisei, achei com 1 clique no: www.achou.net.br`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
+
+  // Tratamento para links
+  const cleanPhone = local.telefone ? local.telefone.replace(/[^0-9]/g, '') : '';
+  const mapLink = local.endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(local.endereco)}` : '#';
 
   return (
     <div className="card-container">
@@ -72,7 +76,10 @@ export default function ResultCard({ content }) {
 
         <div className="detail-row">
           <span className="icon">📍</span>
-          <span>{local.endereco}</span>
+          {/* Link para Mapa (Waze/Google Maps) */}
+          <a href={mapLink} target="_blank" rel="noopener noreferrer" className="info-link">
+            {local.endereco}
+          </a>
         </div>
         <div className="detail-row">
           <span className="icon">📏</span>
@@ -80,7 +87,14 @@ export default function ResultCard({ content }) {
         </div>
         <div className="detail-row">
           <span className="icon">📞</span>
-          <span>{local.telefone}</span>
+          {/* Link para Telefone */}
+          {cleanPhone ? (
+            <a href={`tel:${cleanPhone}`} className="info-link">
+              {local.telefone}
+            </a>
+          ) : (
+            <span>{local.telefone}</span>
+          )}
         </div>
       </div>
 
@@ -167,6 +181,15 @@ export default function ResultCard({ content }) {
           color: #333;
         }
         .icon { min-width: 20px; }
+        
+        /* Classe nova para os links */
+        .info-link {
+          color: #333;
+          text-decoration: underline;
+          text-decoration-color: #cbd5e0;
+          cursor: pointer;
+        }
+        
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
