@@ -204,6 +204,13 @@ export default function Home() {
     const query = termo || buscaLivre;
     if (!query) return alert('O que você precisa agora?');
 
+    // --- NOVA VERIFICAÇÃO DE LOCALIZAÇÃO (SOLICITADA) ---
+    // Se não estiver usando "Outro local" E o GPS não estiver ativo
+    if (!usarOutroLocal && !gpsAtivo) {
+      alert("⚠️ Localização Necessária\n\nEste é um App de busca e funciona melhor com a permissão de localização durante seu uso.\n\nPor favor, ative a localização ou clique no link azul 'Buscar em outro local' para digitar o endereço de referência.");
+      return; // Interrompe a busca
+    }
+
     let enderecoFormatado = "";
     if (usarOutroLocal) {
       if (!bairroManual || !cidadeManual || !estadoManual || !paisManual) {
@@ -247,7 +254,6 @@ export default function Home() {
           campanha: tipoCampanha
         })
       });
-
       const json = await resp.json();
 
       if (json.resultado) {
@@ -302,6 +308,7 @@ export default function Home() {
             {menuAberto && (
               <div className="menu-dropdown">
                 <Link href="/sobre" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>ℹ️ Sobre o app</a></Link>
+                <Link href="/tutorial" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>📚 Tutorial</a></Link>
                 <Link href="/doacao_sangue" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>🩸 Doação de Sangue</a></Link>
                 <Link href="/doacao_orgao" legacyBehavior><a className="menu-item" onClick={() => setMenuAberto(false)}>🫀 Doação de Órgãos</a></Link>
               </div>
@@ -449,8 +456,7 @@ export default function Home() {
           background: #28D07E; /* Fundo Verde */
           color: white; 
           border: none; 
-          border-radius: 10px;
-          width: 55px; 
+          border-radius: 10px; width: 55px; 
           cursor: pointer; 
           display: flex;
           align-items: center;
