@@ -15,17 +15,17 @@ export const config = {
 // 1️⃣ BANCO DE DADOS DE CLIENTES PRIORITÁRIOS (Belo Horizonte)
 const CLIENTES_ACHOU = [
   {
-    tipo: 'pharmacy', 
-    termoMatch: 'farmácia', 
-    nome: "Drogaria Teste de Indicação",
-    endereco: "Rua Alessandra Salum Teste, 181",
-    bairro: "Burits", // Mantido "Burits" propositalmente conforme solicitado
+    tipo: 'Telemedicine', 
+    termoMatch: 'Telemedicina', 
+    nome: "DELTHA MED - TELEMEDICINA",
+    endereco: "www.delthamed.com.br",
+    bairro: "Buritis", // Mantido "Burits" propositalmente conforme solicitado
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     horario: "22:00",
     telefone: "(31) 98823-4548",
     distancia: "0.2 km", 
-    motivo: "Este estabelecimento é um parceiro premium no seu bairro com atendimento garantido."
+    motivo: "Este estabelecimento é um parceiro premium na sua cidade."
   }
 ];
 
@@ -322,4 +322,5 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return (R * c).toFixed(2);
+
 }
