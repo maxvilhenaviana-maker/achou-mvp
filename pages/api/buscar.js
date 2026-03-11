@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
 
 // [CORREÇÃO] Forçar runtime NodeJS para garantir que conexões com banco de dados funcionem corretamente
-// e evitem problemas de Edge Runtime com o driver do Neon.
 export const runtime = 'nodejs';
 
 export const config = {
@@ -19,7 +18,7 @@ const CLIENTES_ACHOU = [
     termoMatch: 'Telemedicina', 
     nome: "DELTHA MED - TELEMEDICINA",
     endereco: "www.delthamed.com.br",
-    bairro: "Buritis", // Mantido "Burits" propositalmente conforme solicitado
+    bairro: "Buritis", // Mantido conforme solicitado
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     horario: "22:00",
@@ -30,7 +29,6 @@ const CLIENTES_ACHOU = [
 ];
 
 export default async function handler(req, res) {
-  // [CORREÇÃO] Verificação explicita da variável de ambiente para debug
   if (!process.env.DATABASE_URL) {
     console.error("ERRO CRÍTICO: DATABASE_URL não definida!");
   }
@@ -58,7 +56,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "GOOGLEMAPS_KEY não configurada" });
   }
 
-  // --- MODO: REVERSE GEOCODING (Para preencher inputs do front) ---
+  // --- MODO: REVERSE GEOCODING ---
   if (modo === 'geo_reverse') {
     try {
       const coords = localizacao.replace(/\s/g, '');
@@ -91,27 +89,18 @@ export default async function handler(req, res) {
 
   let lat = null;
   let lng = null;
-  
-  // Variáveis para Log (Inicializadas para garantir que existam no final)
   let bairroUsuario = "Desconhecido";
   let cidadeLog = "Desconhecido";
   let paisLog = "Brasil";
-  const termoBusca = busca.toLowerCase();
+  const termoBusca = (busca || "").toLowerCase();
 
-  // Função interna para salvar métrica de forma centralizada
   const salvarNoBanco = async (nomeFinal) => {
     try {
-      console.log(`Tentando salvar log: ${nomeFinal} em ${bairroUsuario}`);
       await sql`
         INSERT INTO log_buscas_achou 
         (origem_bairro, origem_cidade, origem_pais, tipo_estabelecimento, nome_estabelecimento, busca_bairro, busca_cidade, busca_pais)
-        VALUES (
-          ${bairroUsuario}, ${cidadeLog}, ${paisLog}, 
-          ${termoBusca}, ${nomeFinal}, 
-          ${bairroUsuario}, ${cidadeLog}, ${paisLog}
-        )
+        VALUES (${bairroUsuario}, ${cidadeLog}, ${paisLog}, ${termoBusca}, ${nomeFinal}, ${bairroUsuario}, ${cidadeLog}, ${paisLog})
       `;
-      console.log("Log salvo com sucesso!");
     } catch (e) {
       console.error("Erro ao gravar no banco:", e);
     }
@@ -128,7 +117,6 @@ export default async function handler(req, res) {
         lat = geocodeData.results[0].geometry.location.lat;
         lng = geocodeData.results[0].geometry.location.lng;
       } else {
-        // Log de erro antes de retornar
         await salvarNoBanco("Erro Localização Manual");
         return res.status(200).json({
              resultado: JSON.stringify({
@@ -147,7 +135,7 @@ export default async function handler(req, res) {
       lng = splitCoords[1];
     }
 
-    // 2️⃣ IDENTIFICAR LOCALIZAÇÃO PARA O LOG
+    // 2️⃣ IDENTIFICAR LOCALIZAÇÃO PARA O LOG E VALIDAÇÃO PREMIUM
     try {
       const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_KEY}`;
       const geoResp = await fetch(geoUrl);
@@ -169,10 +157,10 @@ export default async function handler(req, res) {
       console.error("Erro no Geocoding reverso:", errGeo);
     }
 
-    // 3️⃣ CHECK CLIENTE PRIORITÁRIO
+    // 3️⃣ CHECK CLIENTE PRIORITÁRIO (Habilitado para Belo Horizonte + Telemedicina)
     const clienteMatch = CLIENTES_ACHOU.find(c => 
-      (termoBusca.includes(c.termoMatch) || termoBusca === c.tipo) && 
-      bairroUsuario.toLowerCase() === c.bairro.toLowerCase() &&
+      (termoBusca.includes(c.termoMatch.toLowerCase()) || termoBusca.includes(c.tipo.toLowerCase())) && 
+      (cidadeLog.toLowerCase() === "belo horizonte") &&
       !excluir.includes(c.nome)
     );
     
@@ -186,7 +174,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4️⃣ BUSCA GOOGLE MAPS
+    // 4️⃣ BUSCA GOOGLE MAPS (Caso não seja o cliente prioritário)
     const tiposGoogle = {
       'farmácia': 'pharmacy', 'farmacia': 'pharmacy',
       'restaurante': 'restaurant', 'mercado': 'supermarket',
@@ -212,11 +200,8 @@ export default async function handler(req, res) {
     listaResultados = listaResultados.filter(place => {
       const nome = place.name.toLowerCase();
       const types = (place.types || []).join(' ').toLowerCase();
-      if (termoBusca.includes('farmácia') || termoBusca.includes('farmacia')) {
-        if (['veterin', 'pet ', 'petshop', 'animal', 'bicho', 'agro'].some(t => nome.includes(t)) || types.includes('veterinary_care')) return false;
-      }
-      if (termoBusca.includes('mercado') || termoBusca.includes('supermercado')) {
-        if (['consult', 'admin', 'advoca', 'contabil', 'imobili', 'engenharia'].some(t => nome.includes(t))) return false;
+      if (termoBusca.includes('farmácia')) {
+        if (['veterin', 'pet ', 'petshop'].some(t => nome.includes(t)) || types.includes('veterinary_care')) return false;
       }
       return true;
     });
@@ -231,14 +216,12 @@ export default async function handler(req, res) {
           endereco: "Não informado",
           status: "Fechado ou Esgotado",
           horario: "-", distancia: "—", telefone: "Não informado",
-          // [ALTERAÇÃO 2] Mensagem específica quando não há estabelecimentos abertos
           motivo: "Neste momento este tipo de estabelecimento não está aberto. Tente novamente no horário comercial",
           bairro_usuario: bairroUsuario
         })
       });
     }
 
-    // Detalhes do Lugar
     const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${melhor.place_id}&fields=name,formatted_address,formatted_phone_number,geometry,opening_hours&key=${GOOGLE_KEY}`;
     const detailsResp = await fetch(detailsUrl);
     const detailsData = await detailsResp.json();
@@ -246,16 +229,14 @@ export default async function handler(req, res) {
     
     const distKm = calcularDistancia(parseFloat(lat), parseFloat(lng), place.geometry?.location?.lat, place.geometry?.location?.lng);
 
-    // Horário
     let horarioFechamento = "Consulte";
     try {
-      if (place.opening_hours && place.opening_hours.periods) {
+      if (place.opening_hours?.periods) {
         const now = new Date();
         now.setHours(now.getHours() - 3); 
         const todayDay = now.getDay(); 
         const period = place.opening_hours.periods.find(p => p.open && p.open.day === todayDay);
-        
-        if (period && period.close) {
+        if (period?.close) {
           horarioFechamento = `${period.close.time.substring(0, 2)}:${period.close.time.substring(2, 4)}`;
         } else if (place.opening_hours.open_now && !period) {
           horarioFechamento = "24h";
@@ -264,8 +245,6 @@ export default async function handler(req, res) {
     } catch (e) { horarioFechamento = "Consulte"; }
 
     let motivo = "Este é o local aberto mais próximo identificado.";
-    
-    // OpenAI para o Motivo com [ALTERAÇÃO 1] de incentivo
     if (OPENAI_KEY) {
       try {
         const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -285,8 +264,6 @@ export default async function handler(req, res) {
       } catch (_) { }
     }
 
-    // [SALVAR NO BANCO]
-    // Await garantido antes da resposta
     await salvarNoBanco(place.name || "Sem Nome");
     
     return res.status(200).json({
@@ -304,11 +281,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("Erro geral no handler:", err);
-    // Tenta salvar o erro no banco se possível
-    try {
-      await salvarNoBanco(`Erro Interno: ${err.message}`);
-    } catch(e) {}
-    
     return res.status(500).json({ error: "Erro interno no servidor" });
   }
 }
@@ -322,5 +294,4 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return (R * c).toFixed(2);
-
 }
