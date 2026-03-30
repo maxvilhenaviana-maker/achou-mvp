@@ -16,9 +16,9 @@ const CLIENTES_ACHOU = [
   {
     tipo: 'Telemedicine', 
     termoMatch: 'Telemedicina', 
-    nome: "DELTHA MED - TELEMEDICINA",
-    endereco: "www.delthamed.com.br",
-    bairro: "Buritis", // Mantido conforme solicitado
+    nome: "UNIMED - TELEMEDICINA",
+    endereco: "www.unimed.com.br",
+    bairro: "Santa Efigênia", // Mantido conforme solicitado
     cidade_estado: "Belo Horizonte - MG",
     status: "Aberto agora",
     horario: "22:00",
